@@ -220,6 +220,17 @@ function addOutline(buf, w, h, r, g, b) {
 }
 ```
 
+## Art Style & Expression
+
+See `references/art-style-guide.md` for comprehensive guidance on:
+- **Color theory** — hue shifting, ramp construction, palette harmony
+- **Outlines** — full black, colored (sel-out), selective, none
+- **Shading** — light source, dithering, manual AA
+- **Expressive characters** — eyes, mouth, eyebrows, body language at each resolution
+- **Material rendering** — skin, metal, fabric, hair, wood, stone, water, glass
+- **Common mistakes** — pillow shading, banding, noise, jaggies
+- **Style presets** — NES, SNES, GBA, modern indie, chibi
+
 ## Character Assembly
 
 Characters are built by compositing part layers in order. See `references/character-system.md` for the full part slot system, body types, and color mapping.
