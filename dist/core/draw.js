@@ -104,5 +104,101 @@ function floodFill(buffer, width, startX, startY, r, g, b, a) {
     stack.push([x, y - 1]);
   }
 }
+function drawCircle(buffer, width, height, cx, cy, radius, r, g, b, a, filled) {
+  if (radius === 0) {
+    if (isInBounds(cx, cy, width, height)) {
+      setPixel(buffer, width, cx, cy, r, g, b, a);
+    }
+    return;
+  }
+  if (filled) {
+    const plotPoints = /* @__PURE__ */ new Set();
+    let x = 0;
+    let y = radius;
+    let d = 1 - radius;
+    while (x <= y) {
+      plotPoints.add(`${cx + x},${cy + y}`);
+      plotPoints.add(`${cx - x},${cy + y}`);
+      plotPoints.add(`${cx + x},${cy - y}`);
+      plotPoints.add(`${cx - x},${cy - y}`);
+      plotPoints.add(`${cx + y},${cy + x}`);
+      plotPoints.add(`${cx - y},${cy + x}`);
+      plotPoints.add(`${cx + y},${cy - x}`);
+      plotPoints.add(`${cx - y},${cy - x}`);
+      if (d < 0) {
+        d += 2 * x + 3;
+      } else {
+        d += 2 * (x - y) + 5;
+        y--;
+      }
+      x++;
+    }
+    const yRanges = /* @__PURE__ */ new Map();
+    for (const point of plotPoints) {
+      const coords = point.split(",");
+      if (coords.length !== 2 || coords[0] === void 0 || coords[1] === void 0) {
+        continue;
+      }
+      const px = parseInt(coords[0], 10);
+      const py = parseInt(coords[1], 10);
+      if (isNaN(px) || isNaN(py)) {
+        continue;
+      }
+      const currentRange = yRanges.get(py);
+      if (currentRange) {
+        yRanges.set(py, [Math.min(currentRange[0], px), Math.max(currentRange[1], px)]);
+      } else {
+        yRanges.set(py, [px, px]);
+      }
+    }
+    for (const [y2, [xMin, xMax]] of yRanges) {
+      if (y2 >= 0 && y2 < height) {
+        for (let x2 = xMin; x2 <= xMax; x2++) {
+          if (x2 >= 0 && x2 < width) {
+            setPixel(buffer, width, x2, y2, r, g, b, a);
+          }
+        }
+      }
+    }
+  } else {
+    let x = 0;
+    let y = radius;
+    let d = 1 - radius;
+    const safeSetPixel = (px, py) => {
+      if (isInBounds(px, py, width, height)) {
+        setPixel(buffer, width, px, py, r, g, b, a);
+      }
+    };
+    while (x <= y) {
+      safeSetPixel(cx + x, cy + y);
+      safeSetPixel(cx - x, cy + y);
+      safeSetPixel(cx + x, cy - y);
+      safeSetPixel(cx - x, cy - y);
+      safeSetPixel(cx + y, cy + x);
+      safeSetPixel(cx - y, cy + x);
+      safeSetPixel(cx + y, cy - x);
+      safeSetPixel(cx - y, cy - x);
+      if (d < 0) {
+        d += 2 * x + 3;
+      } else {
+        d += 2 * (x - y) + 5;
+        y--;
+      }
+      x++;
+    }
+  }
+}
+function replaceColor(buffer, width, height, oldColor, newColor) {
+  const totalPixels = width * height;
+  for (let i = 0; i < totalPixels; i++) {
+    const offset = i * 4;
+    if (buffer[offset] === oldColor.r && buffer[offset + 1] === oldColor.g && buffer[offset + 2] === oldColor.b && buffer[offset + 3] === oldColor.a) {
+      buffer[offset] = newColor.r;
+      buffer[offset + 1] = newColor.g;
+      buffer[offset + 2] = newColor.b;
+      buffer[offset + 3] = newColor.a;
+    }
+  }
+}
 
-export { drawLine, drawRect, floodFill, getPixel, setPixel };
+export { drawCircle, drawLine, drawRect, floodFill, getPixel, replaceColor, setPixel };

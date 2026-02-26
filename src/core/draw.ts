@@ -265,3 +265,170 @@ export function floodFill(
     stack.push([x, y - 1]);     // up
   }
 }
+
+/**
+ * Draw a circle using the midpoint circle algorithm
+ * @param buffer RGBA buffer (Uint8Array)
+ * @param width Buffer width in pixels
+ * @param height Buffer height in pixels
+ * @param cx Center X coordinate
+ * @param cy Center Y coordinate
+ * @param radius Circle radius
+ * @param r Red component (0-255)
+ * @param g Green component (0-255)
+ * @param b Blue component (0-255)
+ * @param a Alpha component (0-255)
+ * @param filled Whether to fill the circle (true) or just draw outline (false)
+ */
+export function drawCircle(
+  buffer: Uint8Array,
+  width: number,
+  height: number,
+  cx: number,
+  cy: number,
+  radius: number,
+  r: number,
+  g: number,
+  b: number,
+  a: number,
+  filled: boolean
+): void {
+  // Handle radius 0 case - just draw center pixel
+  if (radius === 0) {
+    if (isInBounds(cx, cy, width, height)) {
+      setPixel(buffer, width, cx, cy, r, g, b, a);
+    }
+    return;
+  }
+
+  if (filled) {
+    // For filled circles, draw horizontal lines between symmetric points
+    // Use midpoint algorithm to find the outline, then fill each row
+    const plotPoints = new Set<string>();
+    
+    // Generate all outline points using midpoint circle algorithm
+    let x = 0;
+    let y = radius;
+    let d = 1 - radius;
+    
+    while (x <= y) {
+      // Add all 8 symmetric points to our set
+      plotPoints.add(`${cx + x},${cy + y}`);
+      plotPoints.add(`${cx - x},${cy + y}`);
+      plotPoints.add(`${cx + x},${cy - y}`);
+      plotPoints.add(`${cx - x},${cy - y}`);
+      plotPoints.add(`${cx + y},${cy + x}`);
+      plotPoints.add(`${cx - y},${cy + x}`);
+      plotPoints.add(`${cx + y},${cy - x}`);
+      plotPoints.add(`${cx - y},${cy - x}`);
+      
+      if (d < 0) {
+        d += 2 * x + 3;
+      } else {
+        d += 2 * (x - y) + 5;
+        y--;
+      }
+      x++;
+    }
+    
+    // For each y value in the circle, find the leftmost and rightmost x values
+    const yRanges = new Map<number, [number, number]>();
+    
+    for (const point of plotPoints) {
+      const coords = point.split(',');
+      if (coords.length !== 2 || coords[0] === undefined || coords[1] === undefined) {
+        continue;
+      }
+      const px = parseInt(coords[0], 10);
+      const py = parseInt(coords[1], 10);
+      if (isNaN(px) || isNaN(py)) {
+        continue;
+      }
+      
+      const currentRange = yRanges.get(py);
+      if (currentRange) {
+        yRanges.set(py, [Math.min(currentRange[0], px), Math.max(currentRange[1], px)]);
+      } else {
+        yRanges.set(py, [px, px]);
+      }
+    }
+    
+    // Draw horizontal lines for each y value
+    for (const [y, [xMin, xMax]] of yRanges) {
+      if (y >= 0 && y < height) {
+        for (let x = xMin; x <= xMax; x++) {
+          if (x >= 0 && x < width) {
+            setPixel(buffer, width, x, y, r, g, b, a);
+          }
+        }
+      }
+    }
+  } else {
+    // Outline only - use midpoint circle algorithm
+    let x = 0;
+    let y = radius;
+    let d = 1 - radius;
+    
+    // Helper function to safely set a pixel
+    const safeSetPixel = (px: number, py: number) => {
+      if (isInBounds(px, py, width, height)) {
+        setPixel(buffer, width, px, py, r, g, b, a);
+      }
+    };
+    
+    while (x <= y) {
+      // Draw all 8 symmetric points
+      safeSetPixel(cx + x, cy + y);
+      safeSetPixel(cx - x, cy + y);
+      safeSetPixel(cx + x, cy - y);
+      safeSetPixel(cx - x, cy - y);
+      safeSetPixel(cx + y, cy + x);
+      safeSetPixel(cx - y, cy + x);
+      safeSetPixel(cx + y, cy - x);
+      safeSetPixel(cx - y, cy - x);
+      
+      if (d < 0) {
+        d += 2 * x + 3;
+      } else {
+        d += 2 * (x - y) + 5;
+        y--;
+      }
+      x++;
+    }
+  }
+}
+
+/**
+ * Replace all pixels matching oldColor with newColor (exact RGBA match)
+ * @param buffer RGBA buffer (Uint8Array)
+ * @param width Buffer width in pixels
+ * @param height Buffer height in pixels
+ * @param oldColor Color to replace
+ * @param newColor Color to replace with
+ */
+export function replaceColor(
+  buffer: Uint8Array,
+  width: number,
+  height: number,
+  oldColor: Color,
+  newColor: Color
+): void {
+  const totalPixels = width * height;
+  
+  for (let i = 0; i < totalPixels; i++) {
+    const offset = i * 4;
+    
+    // Check if current pixel matches oldColor exactly
+    if (buffer[offset] === oldColor.r &&
+        buffer[offset + 1] === oldColor.g &&
+        buffer[offset + 2] === oldColor.b &&
+        buffer[offset + 3] === oldColor.a) {
+      
+      // Replace with newColor
+      buffer[offset] = newColor.r;
+      buffer[offset + 1] = newColor.g;
+      buffer[offset + 2] = newColor.b;
+      buffer[offset + 3] = newColor.a;
+    }
+  }
+}

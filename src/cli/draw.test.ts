@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, rmSync } from 'fs';
 import { execSync } from 'child_process';
 import { readPNG, writePNG } from '../io/png.js';
 import { createCanvas } from '../core/canvas.js';
-import { getPixel, drawRect, drawLine } from '../core/draw.js';
+import { getPixel, drawRect, drawLine, setPixel } from '../core/draw.js';
 import { TEST_WORKSPACE } from '../../test/setup.js';
 
 describe('CLI draw commands (#16)', () => {
@@ -405,6 +405,276 @@ describe('CLI draw commands (#16)', () => {
       // Check right side is still transparent
       expect(getPixel(result.buffer, result.width, 4, 1)).toEqual({ r: 0, g: 0, b: 0, a: 0 });
       expect(getPixel(result.buffer, result.width, 6, 1)).toEqual({ r: 0, g: 0, b: 0, a: 0 });
+    });
+  });
+
+  describe('pxl draw circle (#24)', () => {
+    it('should draw an outlined circle', async () => {
+      const canvas = createCanvas(9, 9);
+      const pngPath = resolve(testDir, 'circle-outline.png');
+      await writePNG(canvas, pngPath);
+      
+      // Draw circle at center with radius 3
+      const command = `node "${pxlPath}" draw circle "${pngPath}" 4,4 3 "#FF0000"`;
+      execSync(command, { cwd: testDir });
+      
+      const result = await readPNG(pngPath);
+      
+      // Check some expected outline positions
+      expect(getPixel(result.buffer, result.width, 4, 1)).toEqual({ r: 255, g: 0, b: 0, a: 255 }); // top
+      expect(getPixel(result.buffer, result.width, 4, 7)).toEqual({ r: 255, g: 0, b: 0, a: 255 }); // bottom
+      expect(getPixel(result.buffer, result.width, 1, 4)).toEqual({ r: 255, g: 0, b: 0, a: 255 }); // left
+      expect(getPixel(result.buffer, result.width, 7, 4)).toEqual({ r: 255, g: 0, b: 0, a: 255 }); // right
+      
+      // Check center is not filled
+      expect(getPixel(result.buffer, result.width, 4, 4)).toEqual({ r: 0, g: 0, b: 0, a: 0 });
+    });
+
+    it('should draw a filled circle', async () => {
+      const canvas = createCanvas(7, 7);
+      const pngPath = resolve(testDir, 'circle-filled.png');
+      await writePNG(canvas, pngPath);
+      
+      // Draw filled circle at center with radius 2
+      const command = `node "${pxlPath}" draw circle "${pngPath}" 3,3 2 "#00FF00" --fill`;
+      execSync(command, { cwd: testDir });
+      
+      const result = await readPNG(pngPath);
+      
+      // Check center is filled
+      expect(getPixel(result.buffer, result.width, 3, 3)).toEqual({ r: 0, g: 255, b: 0, a: 255 });
+      
+      // Check some interior points are filled
+      expect(getPixel(result.buffer, result.width, 2, 3)).toEqual({ r: 0, g: 255, b: 0, a: 255 });
+      expect(getPixel(result.buffer, result.width, 4, 3)).toEqual({ r: 0, g: 255, b: 0, a: 255 });
+      
+      // Check some points outside are transparent
+      expect(getPixel(result.buffer, result.width, 0, 0)).toEqual({ r: 0, g: 0, b: 0, a: 0 });
+      expect(getPixel(result.buffer, result.width, 6, 6)).toEqual({ r: 0, g: 0, b: 0, a: 0 });
+    });
+
+    it('should draw single pixel circle (radius 0)', async () => {
+      const canvas = createCanvas(5, 5);
+      const pngPath = resolve(testDir, 'circle-point.png');
+      await writePNG(canvas, pngPath);
+      
+      // Draw circle with radius 0
+      const command = `node "${pxlPath}" draw circle "${pngPath}" 2,2 0 "#0000FF"`;
+      execSync(command, { cwd: testDir });
+      
+      const result = await readPNG(pngPath);
+      
+      // Check only center pixel is colored
+      expect(getPixel(result.buffer, result.width, 2, 2)).toEqual({ r: 0, g: 0, b: 255, a: 255 });
+      
+      // Check neighbors are transparent
+      expect(getPixel(result.buffer, result.width, 1, 2)).toEqual({ r: 0, g: 0, b: 0, a: 0 });
+      expect(getPixel(result.buffer, result.width, 3, 2)).toEqual({ r: 0, g: 0, b: 0, a: 0 });
+    });
+  });
+
+  describe('pxl draw replace (#24)', () => {
+    it('should replace all instances of a color', async () => {
+      const canvas = createCanvas(4, 4);
+      const pngPath = resolve(testDir, 'replace-test.png');
+      
+      // Create pattern with red and blue pixels
+      drawRect(canvas.buffer, canvas.width, 0, 0, 1, 1, 255, 0, 0, 255, true); // red square
+      drawRect(canvas.buffer, canvas.width, 2, 2, 3, 3, 0, 0, 255, 255, true); // blue square
+      setPixel(canvas.buffer, canvas.width, 1, 3, 255, 0, 0, 255); // another red pixel
+      
+      await writePNG(canvas, pngPath);
+      
+      // Replace red with green
+      const command = `node "${pxlPath}" draw replace "${pngPath}" "#FF0000" "#00FF00"`;
+      execSync(command, { cwd: testDir });
+      
+      const result = await readPNG(pngPath);
+      
+      // Check that red pixels are now green
+      expect(getPixel(result.buffer, result.width, 0, 0)).toEqual({ r: 0, g: 255, b: 0, a: 255 });
+      expect(getPixel(result.buffer, result.width, 1, 1)).toEqual({ r: 0, g: 255, b: 0, a: 255 });
+      expect(getPixel(result.buffer, result.width, 1, 3)).toEqual({ r: 0, g: 255, b: 0, a: 255 });
+      
+      // Check that blue pixels are unchanged
+      expect(getPixel(result.buffer, result.width, 2, 2)).toEqual({ r: 0, g: 0, b: 255, a: 255 });
+      expect(getPixel(result.buffer, result.width, 3, 3)).toEqual({ r: 0, g: 0, b: 255, a: 255 });
+    });
+
+    it('should handle exact color matching with alpha', async () => {
+      const canvas = createCanvas(3, 3);
+      const pngPath = resolve(testDir, 'replace-alpha.png');
+      
+      // Set pixels with similar but different alpha values
+      setPixel(canvas.buffer, canvas.width, 0, 0, 255, 0, 0, 255); // red, opaque
+      setPixel(canvas.buffer, canvas.width, 1, 0, 255, 0, 0, 128); // red, semi-transparent
+      setPixel(canvas.buffer, canvas.width, 2, 0, 254, 0, 0, 255); // almost red, opaque
+      
+      await writePNG(canvas, pngPath);
+      
+      // Replace exact red opaque with blue
+      const command = `node "${pxlPath}" draw replace "${pngPath}" "#FF0000FF" "#0000FF"`;
+      execSync(command, { cwd: testDir });
+      
+      const result = await readPNG(pngPath);
+      
+      // Only exact match should be replaced
+      expect(getPixel(result.buffer, result.width, 0, 0)).toEqual({ r: 0, g: 0, b: 255, a: 255 }); // replaced
+      expect(getPixel(result.buffer, result.width, 1, 0)).toEqual({ r: 255, g: 0, b: 0, a: 128 }); // unchanged (different alpha)
+      expect(getPixel(result.buffer, result.width, 2, 0)).toEqual({ r: 254, g: 0, b: 0, a: 255 }); // unchanged (different red)
+    });
+
+    it('should replace transparent color', async () => {
+      const canvas = createCanvas(2, 2);
+      const pngPath = resolve(testDir, 'replace-transparent.png');
+      
+      // Set one pixel, leave others transparent
+      setPixel(canvas.buffer, canvas.width, 1, 1, 255, 0, 0, 255); // red
+      
+      await writePNG(canvas, pngPath);
+      
+      // Replace transparent with blue
+      const command = `node "${pxlPath}" draw replace "${pngPath}" "#00000000" "#0000FF"`;
+      execSync(command, { cwd: testDir });
+      
+      const result = await readPNG(pngPath);
+      
+      // Transparent pixels should be blue now
+      expect(getPixel(result.buffer, result.width, 0, 0)).toEqual({ r: 0, g: 0, b: 255, a: 255 });
+      expect(getPixel(result.buffer, result.width, 0, 1)).toEqual({ r: 0, g: 0, b: 255, a: 255 });
+      expect(getPixel(result.buffer, result.width, 1, 0)).toEqual({ r: 0, g: 0, b: 255, a: 255 });
+      
+      // Red pixel should be unchanged
+      expect(getPixel(result.buffer, result.width, 1, 1)).toEqual({ r: 255, g: 0, b: 0, a: 255 });
+    });
+  });
+
+  describe('pxl draw erase (#24)', () => {
+    it('should erase a single pixel', async () => {
+      const canvas = createCanvas(3, 3);
+      const pngPath = resolve(testDir, 'erase-test.png');
+      
+      // Fill canvas with red
+      drawRect(canvas.buffer, canvas.width, 0, 0, 2, 2, 255, 0, 0, 255, true);
+      
+      await writePNG(canvas, pngPath);
+      
+      // Erase center pixel
+      const command = `node "${pxlPath}" draw erase "${pngPath}" 1,1`;
+      execSync(command, { cwd: testDir });
+      
+      const result = await readPNG(pngPath);
+      
+      // Check center pixel is transparent
+      expect(getPixel(result.buffer, result.width, 1, 1)).toEqual({ r: 0, g: 0, b: 0, a: 0 });
+      
+      // Check other pixels remain red
+      expect(getPixel(result.buffer, result.width, 0, 0)).toEqual({ r: 255, g: 0, b: 0, a: 255 });
+      expect(getPixel(result.buffer, result.width, 2, 2)).toEqual({ r: 255, g: 0, b: 0, a: 255 });
+    });
+
+    it('should handle erasing already transparent pixels', async () => {
+      const canvas = createCanvas(2, 2);
+      const pngPath = resolve(testDir, 'erase-transparent.png');
+      await writePNG(canvas, pngPath);
+      
+      // Erase already transparent pixel (should not error)
+      const command = `node "${pxlPath}" draw erase "${pngPath}" 0,0`;
+      execSync(command, { cwd: testDir });
+      
+      const result = await readPNG(pngPath);
+      
+      // All pixels should remain transparent
+      for (let y = 0; y < 2; y++) {
+        for (let x = 0; x < 2; x++) {
+          expect(getPixel(result.buffer, result.width, x, y)).toEqual({ r: 0, g: 0, b: 0, a: 0 });
+        }
+      }
+    });
+  });
+
+  describe('pxl draw outline (#26)', () => {
+    it('should add outline around a sprite', async () => {
+      const canvas = createCanvas(5, 5);
+      const pngPath = resolve(testDir, 'outline-test.png');
+      
+      // Create a simple 2x2 red square in center
+      setPixel(canvas.buffer, canvas.width, 2, 2, 255, 0, 0, 255);
+      setPixel(canvas.buffer, canvas.width, 3, 2, 255, 0, 0, 255);
+      setPixel(canvas.buffer, canvas.width, 2, 3, 255, 0, 0, 255);
+      setPixel(canvas.buffer, canvas.width, 3, 3, 255, 0, 0, 255);
+      
+      await writePNG(canvas, pngPath);
+      
+      // Add black outline
+      const command = `node "${pxlPath}" draw outline "${pngPath}" "#000000"`;
+      execSync(command, { cwd: testDir });
+      
+      const result = await readPNG(pngPath);
+      
+      // Check that original pixels are unchanged
+      expect(getPixel(result.buffer, result.width, 2, 2)).toEqual({ r: 255, g: 0, b: 0, a: 255 });
+      expect(getPixel(result.buffer, result.width, 3, 3)).toEqual({ r: 255, g: 0, b: 0, a: 255 });
+      
+      // Check that outline pixels exist
+      expect(getPixel(result.buffer, result.width, 1, 2)).toEqual({ r: 0, g: 0, b: 0, a: 255 }); // left
+      expect(getPixel(result.buffer, result.width, 4, 2)).toEqual({ r: 0, g: 0, b: 0, a: 255 }); // right
+      expect(getPixel(result.buffer, result.width, 2, 1)).toEqual({ r: 0, g: 0, b: 0, a: 255 }); // top
+      expect(getPixel(result.buffer, result.width, 3, 4)).toEqual({ r: 0, g: 0, b: 0, a: 255 }); // bottom
+    });
+
+    it('should handle complex shaped sprites', async () => {
+      const canvas = createCanvas(7, 7);
+      const pngPath = resolve(testDir, 'outline-complex.png');
+      
+      // Create L-shaped sprite
+      setPixel(canvas.buffer, canvas.width, 2, 2, 255, 0, 0, 255);
+      setPixel(canvas.buffer, canvas.width, 2, 3, 255, 0, 0, 255);
+      setPixel(canvas.buffer, canvas.width, 2, 4, 255, 0, 0, 255);
+      setPixel(canvas.buffer, canvas.width, 3, 4, 255, 0, 0, 255);
+      setPixel(canvas.buffer, canvas.width, 4, 4, 255, 0, 0, 255);
+      
+      await writePNG(canvas, pngPath);
+      
+      // Add white outline
+      const command = `node "${pxlPath}" draw outline "${pngPath}" "#FFFFFF"`;
+      execSync(command, { cwd: testDir });
+      
+      const result = await readPNG(pngPath);
+      
+      // Check that original L-shape pixels are unchanged
+      expect(getPixel(result.buffer, result.width, 2, 2)).toEqual({ r: 255, g: 0, b: 0, a: 255 });
+      expect(getPixel(result.buffer, result.width, 4, 4)).toEqual({ r: 255, g: 0, b: 0, a: 255 });
+      
+      // Check some outline positions
+      expect(getPixel(result.buffer, result.width, 1, 2)).toEqual({ r: 255, g: 255, b: 255, a: 255 }); // left of top
+      expect(getPixel(result.buffer, result.width, 2, 1)).toEqual({ r: 255, g: 255, b: 255, a: 255 }); // above top
+      expect(getPixel(result.buffer, result.width, 5, 4)).toEqual({ r: 255, g: 255, b: 255, a: 255 }); // right of end
+      expect(getPixel(result.buffer, result.width, 4, 5)).toEqual({ r: 255, g: 255, b: 255, a: 255 }); // below end
+    });
+
+    it('should handle sprites at canvas edges', async () => {
+      const canvas = createCanvas(3, 3);
+      const pngPath = resolve(testDir, 'outline-edge.png');
+      
+      // Place pixel at edge
+      setPixel(canvas.buffer, canvas.width, 0, 1, 255, 0, 0, 255);
+      
+      await writePNG(canvas, pngPath);
+      
+      // Add outline
+      const command = `node "${pxlPath}" draw outline "${pngPath}" "#00FF00"`;
+      execSync(command, { cwd: testDir });
+      
+      const result = await readPNG(pngPath);
+      
+      // Check original pixel unchanged
+      expect(getPixel(result.buffer, result.width, 0, 1)).toEqual({ r: 255, g: 0, b: 0, a: 255 });
+      
+      // Check outline appears where possible
+      expect(getPixel(result.buffer, result.width, 1, 1)).toEqual({ r: 0, g: 255, b: 0, a: 255 }); // right
+      expect(getPixel(result.buffer, result.width, 0, 0)).toEqual({ r: 0, g: 255, b: 0, a: 255 }); // above
+      expect(getPixel(result.buffer, result.width, 0, 2)).toEqual({ r: 0, g: 255, b: 0, a: 255 }); // below
     });
   });
 });

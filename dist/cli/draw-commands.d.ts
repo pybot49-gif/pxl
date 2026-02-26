@@ -17,8 +17,24 @@ declare function createRectCommand(): Command;
  */
 declare function createFillCommand(): Command;
 /**
+ * Draw circle command: draws a circle (filled or outlined)
+ */
+declare function createCircleCommand(): Command;
+/**
+ * Replace color command: replaces all instances of a color with another color
+ */
+declare function createReplaceCommand(): Command;
+/**
+ * Erase pixel command: sets a pixel to transparent
+ */
+declare function createEraseCommand(): Command;
+/**
+ * Outline command: adds outline to sprite
+ */
+declare function createOutlineCommand(): Command;
+/**
  * Add all draw commands to the parent command
  */
 declare function addDrawCommands(program: Command): void;
 
-export { addDrawCommands, createFillCommand, createLineCommand, createPixelCommand, createRectCommand };
+export { addDrawCommands, createCircleCommand, createEraseCommand, createFillCommand, createLineCommand, createOutlineCommand, createPixelCommand, createRectCommand, createReplaceCommand };

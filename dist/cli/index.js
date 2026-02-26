@@ -274,6 +274,151 @@ function floodFill(buffer, width, startX, startY, r, g, b, a) {
     stack.push([x, y - 1]);
   }
 }
+function drawCircle(buffer, width, height, cx, cy, radius, r, g, b, a, filled) {
+  if (radius === 0) {
+    if (isInBounds(cx, cy, width, height)) {
+      setPixel(buffer, width, cx, cy, r, g, b, a);
+    }
+    return;
+  }
+  if (filled) {
+    const plotPoints = /* @__PURE__ */ new Set();
+    let x = 0;
+    let y = radius;
+    let d = 1 - radius;
+    while (x <= y) {
+      plotPoints.add(`${cx + x},${cy + y}`);
+      plotPoints.add(`${cx - x},${cy + y}`);
+      plotPoints.add(`${cx + x},${cy - y}`);
+      plotPoints.add(`${cx - x},${cy - y}`);
+      plotPoints.add(`${cx + y},${cy + x}`);
+      plotPoints.add(`${cx - y},${cy + x}`);
+      plotPoints.add(`${cx + y},${cy - x}`);
+      plotPoints.add(`${cx - y},${cy - x}`);
+      if (d < 0) {
+        d += 2 * x + 3;
+      } else {
+        d += 2 * (x - y) + 5;
+        y--;
+      }
+      x++;
+    }
+    const yRanges = /* @__PURE__ */ new Map();
+    for (const point of plotPoints) {
+      const coords = point.split(",");
+      if (coords.length !== 2 || coords[0] === void 0 || coords[1] === void 0) {
+        continue;
+      }
+      const px = parseInt(coords[0], 10);
+      const py = parseInt(coords[1], 10);
+      if (isNaN(px) || isNaN(py)) {
+        continue;
+      }
+      const currentRange = yRanges.get(py);
+      if (currentRange) {
+        yRanges.set(py, [Math.min(currentRange[0], px), Math.max(currentRange[1], px)]);
+      } else {
+        yRanges.set(py, [px, px]);
+      }
+    }
+    for (const [y2, [xMin, xMax]] of yRanges) {
+      if (y2 >= 0 && y2 < height) {
+        for (let x2 = xMin; x2 <= xMax; x2++) {
+          if (x2 >= 0 && x2 < width) {
+            setPixel(buffer, width, x2, y2, r, g, b, a);
+          }
+        }
+      }
+    }
+  } else {
+    let x = 0;
+    let y = radius;
+    let d = 1 - radius;
+    const safeSetPixel = (px, py) => {
+      if (isInBounds(px, py, width, height)) {
+        setPixel(buffer, width, px, py, r, g, b, a);
+      }
+    };
+    while (x <= y) {
+      safeSetPixel(cx + x, cy + y);
+      safeSetPixel(cx - x, cy + y);
+      safeSetPixel(cx + x, cy - y);
+      safeSetPixel(cx - x, cy - y);
+      safeSetPixel(cx + y, cy + x);
+      safeSetPixel(cx - y, cy + x);
+      safeSetPixel(cx + y, cy - x);
+      safeSetPixel(cx - y, cy - x);
+      if (d < 0) {
+        d += 2 * x + 3;
+      } else {
+        d += 2 * (x - y) + 5;
+        y--;
+      }
+      x++;
+    }
+  }
+}
+function replaceColor(buffer, width, height, oldColor, newColor) {
+  const totalPixels = width * height;
+  for (let i = 0; i < totalPixels; i++) {
+    const offset = i * 4;
+    if (buffer[offset] === oldColor.r && buffer[offset + 1] === oldColor.g && buffer[offset + 2] === oldColor.b && buffer[offset + 3] === oldColor.a) {
+      buffer[offset] = newColor.r;
+      buffer[offset + 1] = newColor.g;
+      buffer[offset + 2] = newColor.b;
+      buffer[offset + 3] = newColor.a;
+    }
+  }
+}
+
+// src/core/outline.ts
+function isTransparent(buffer, width, x, y) {
+  const offset = (y * width + x) * 4;
+  return buffer[offset + 3] === 0;
+}
+function isInBounds2(x, y, width, height) {
+  return x >= 0 && x < width && y >= 0 && y < height;
+}
+function addOutline(buffer, width, height, r, g, b, a) {
+  const result = new Uint8Array(buffer);
+  const outlinePixels = /* @__PURE__ */ new Set();
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (isTransparent(buffer, width, x, y)) {
+        continue;
+      }
+      const neighbors = [
+        [x, y - 1],
+        // up
+        [x, y + 1],
+        // down
+        [x - 1, y],
+        // left
+        [x + 1, y]
+        // right
+      ];
+      for (const neighbor of neighbors) {
+        const [nx, ny] = neighbor;
+        if (isInBounds2(nx, ny, width, height) && isTransparent(buffer, width, nx, ny)) {
+          outlinePixels.add(`${nx},${ny}`);
+        }
+      }
+    }
+  }
+  for (const pixel of outlinePixels) {
+    const coords = pixel.split(",");
+    if (coords.length !== 2 || coords[0] === void 0 || coords[1] === void 0) {
+      continue;
+    }
+    const x = parseInt(coords[0], 10);
+    const y = parseInt(coords[1], 10);
+    if (isNaN(x) || isNaN(y)) {
+      continue;
+    }
+    setPixel(result, width, x, y, r, g, b, a);
+  }
+  return result;
+}
 
 // src/cli/draw-commands.ts
 function parseCoordinates(coordStr) {
@@ -406,12 +551,114 @@ function createFillCommand() {
     }
   });
 }
+function createCircleCommand() {
+  return new Command("circle").description("Draw a circle").argument("<path>", "PNG file path to modify").argument("<center>", "Center coordinates in X,Y format (e.g., 5,5)").argument("<radius>", "Circle radius (e.g., 3)").argument("<color>", "Circle color in hex format (e.g., #FF0000)").option("-f, --fill", "Fill the circle (default: outlined only)", false).action(async (path, center, radiusStr, color, options) => {
+    try {
+      if (!existsSync(path)) {
+        throw new Error(`PNG file not found: ${path}`);
+      }
+      const centerCoords = parseCoordinates(center);
+      const radius = parseInt(radiusStr, 10);
+      const parsedColor = parseHex(color);
+      if (isNaN(radius) || radius < 0) {
+        throw new Error(`Invalid radius: ${radiusStr}. Must be a non-negative integer.`);
+      }
+      const image = await readPNG(path);
+      validateBounds(centerCoords.x, centerCoords.y, image.width, image.height);
+      drawCircle(
+        image.buffer,
+        image.width,
+        image.height,
+        centerCoords.x,
+        centerCoords.y,
+        radius,
+        parsedColor.r,
+        parsedColor.g,
+        parsedColor.b,
+        parsedColor.a,
+        options.fill
+      );
+      await writePNG(image, path);
+      const fillType = options.fill ? "filled" : "outlined";
+      console.log(`Drew ${fillType} circle at (${centerCoords.x},${centerCoords.y}) radius ${radius} with color ${color} in ${path}`);
+    } catch (error) {
+      console.error("Error drawing circle:", error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  });
+}
+function createReplaceCommand() {
+  return new Command("replace").description("Replace all pixels of one color with another color").argument("<path>", "PNG file path to modify").argument("<old-color>", "Color to replace in hex format (e.g., #FF0000)").argument("<new-color>", "Replacement color in hex format (e.g., #00FF00)").action(async (path, oldColorStr, newColorStr) => {
+    try {
+      if (!existsSync(path)) {
+        throw new Error(`PNG file not found: ${path}`);
+      }
+      const oldColor = parseHex(oldColorStr);
+      const newColor = parseHex(newColorStr);
+      const image = await readPNG(path);
+      replaceColor(image.buffer, image.width, image.height, oldColor, newColor);
+      await writePNG(image, path);
+      console.log(`Replaced color ${oldColorStr} with ${newColorStr} in ${path}`);
+    } catch (error) {
+      console.error("Error replacing color:", error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  });
+}
+function createEraseCommand() {
+  return new Command("erase").description("Erase a pixel (set to transparent)").argument("<path>", "PNG file path to modify").argument("<coordinates>", "Pixel coordinates in X,Y format (e.g., 3,4)").action(async (path, coordinates) => {
+    try {
+      if (!existsSync(path)) {
+        throw new Error(`PNG file not found: ${path}`);
+      }
+      const { x, y } = parseCoordinates(coordinates);
+      const image = await readPNG(path);
+      validateBounds(x, y, image.width, image.height);
+      setPixel(image.buffer, image.width, x, y, 0, 0, 0, 0);
+      await writePNG(image, path);
+      console.log(`Erased pixel at (${x},${y}) in ${path}`);
+    } catch (error) {
+      console.error("Error erasing pixel:", error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  });
+}
+function createOutlineCommand() {
+  return new Command("outline").description("Add outline around sprite").argument("<path>", "PNG file path to modify").argument("<color>", "Outline color in hex format (e.g., #000000)").action(async (path, color) => {
+    try {
+      if (!existsSync(path)) {
+        throw new Error(`PNG file not found: ${path}`);
+      }
+      const parsedColor = parseHex(color);
+      const image = await readPNG(path);
+      const outlineBuffer = addOutline(
+        image.buffer,
+        image.width,
+        image.height,
+        parsedColor.r,
+        parsedColor.g,
+        parsedColor.b,
+        parsedColor.a
+      );
+      image.buffer = outlineBuffer;
+      await writePNG(image, path);
+      console.log(`Added ${color} outline to ${path}`);
+    } catch (error) {
+      console.error("Error adding outline:", error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  });
+}
 function addDrawCommands(program) {
   const drawCmd = program.command("draw").description("Drawing commands for pixels, lines, shapes, etc.");
   drawCmd.addCommand(createPixelCommand());
   drawCmd.addCommand(createLineCommand());
   drawCmd.addCommand(createRectCommand());
   drawCmd.addCommand(createFillCommand());
+  drawCmd.addCommand(createCircleCommand());
+  drawCmd.addCommand(createReplaceCommand());
+  drawCmd.addCommand(createEraseCommand());
+  drawCmd.addCommand(createOutlineCommand());
 }
 
 // src/cli/index.ts
