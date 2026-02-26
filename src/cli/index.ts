@@ -6,6 +6,7 @@ import { addDrawCommands } from './draw-commands.js';
 import { addLayerCommands } from './layer-commands.js';
 import { addPaletteCommands } from './palette-commands.js';
 import { addProjectCommands } from './project-commands.js';
+import { addCharCommands } from './char-commands.js';
 
 /**
  * Read package.json to get version information
@@ -38,6 +39,7 @@ function createProgram(): Command {
   addLayerCommands(program);
   addPaletteCommands(program);
   addProjectCommands(program);
+  addCharCommands(program);
 
   return program;
 }
