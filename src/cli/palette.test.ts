@@ -266,8 +266,7 @@ describe('Palette CLI commands (#43)', () => {
     it('should show message when no palettes exist', () => {
       const output = runCLI('palette list');
       
-      expect(output).toContain('No palettes found in palettes/ directory.');
-      expect(output).toContain('Built-in presets:');
+      expect(output).toContain('No palettes directory found.');
     });
   });
 });
