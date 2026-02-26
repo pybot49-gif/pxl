@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getPixel, setPixel, drawLine, drawRect, floodFill } from './draw.js';
+import { getPixel, setPixel, drawLine, drawRect, floodFill, drawCircle, replaceColor } from './draw.js';
 import { createCanvas } from './canvas.js';
 
 describe('Pixel operations (#13)', () => {
@@ -478,6 +478,209 @@ describe('Pixel operations (#13)', () => {
       // All pixels should still be transparent
       expect(getPixel(canvas.buffer, canvas.width, 0, 0)).toEqual({ r: 0, g: 0, b: 0, a: 0 });
       expect(getPixel(canvas.buffer, canvas.width, 1, 1)).toEqual({ r: 0, g: 0, b: 0, a: 0 });
+    });
+  });
+
+  describe('drawCircle (#22)', () => {
+    it('should draw a small outlined circle', () => {
+      const canvas = createCanvas(9, 9);
+      
+      // Draw circle centered at (4, 4) with radius 3
+      drawCircle(canvas.buffer, canvas.width, canvas.height, 4, 4, 3, 255, 0, 0, 255, false);
+      
+      // Expected pixel positions for a circle of radius 3 centered at (4,4)
+      // Using midpoint circle algorithm
+      const expectedOutline = [
+        [4, 1], [4, 7], // top and bottom
+        [1, 4], [7, 4], // left and right
+        [2, 2], [6, 2], [2, 6], [6, 6], // diagonal corners approximately
+        [3, 1], [5, 1], [3, 7], [5, 7], // near top/bottom
+        [1, 3], [1, 5], [7, 3], [7, 5], // near left/right
+      ];
+      
+      // Check that expected outline pixels are red
+      for (const [x, y] of expectedOutline) {
+        const pixel = getPixel(canvas.buffer, canvas.width, x, y);
+        expect(pixel.r).toBe(255); // Red
+        expect(pixel.g).toBe(0);
+        expect(pixel.b).toBe(0);
+        expect(pixel.a).toBe(255);
+      }
+      
+      // Check center is transparent (not filled)
+      expect(getPixel(canvas.buffer, canvas.width, 4, 4)).toEqual({ r: 0, g: 0, b: 0, a: 0 });
+    });
+
+    it('should draw a filled circle', () => {
+      const canvas = createCanvas(9, 9);
+      
+      // Draw filled circle centered at (4, 4) with radius 3
+      drawCircle(canvas.buffer, canvas.width, canvas.height, 4, 4, 3, 0, 255, 0, 255, true);
+      
+      // Check center is filled
+      expect(getPixel(canvas.buffer, canvas.width, 4, 4)).toEqual({ r: 0, g: 255, b: 0, a: 255 });
+      
+      // Check some interior points are filled
+      expect(getPixel(canvas.buffer, canvas.width, 3, 4)).toEqual({ r: 0, g: 255, b: 0, a: 255 });
+      expect(getPixel(canvas.buffer, canvas.width, 5, 4)).toEqual({ r: 0, g: 255, b: 0, a: 255 });
+      expect(getPixel(canvas.buffer, canvas.width, 4, 3)).toEqual({ r: 0, g: 255, b: 0, a: 255 });
+      expect(getPixel(canvas.buffer, canvas.width, 4, 5)).toEqual({ r: 0, g: 255, b: 0, a: 255 });
+      
+      // Check some points outside the circle are transparent
+      expect(getPixel(canvas.buffer, canvas.width, 0, 0)).toEqual({ r: 0, g: 0, b: 0, a: 0 });
+      expect(getPixel(canvas.buffer, canvas.width, 8, 8)).toEqual({ r: 0, g: 0, b: 0, a: 0 });
+    });
+
+    it('should draw a single pixel circle (radius 0)', () => {
+      const canvas = createCanvas(5, 5);
+      
+      // Draw circle with radius 0 at (2, 2)
+      drawCircle(canvas.buffer, canvas.width, canvas.height, 2, 2, 0, 255, 255, 0, 255, false);
+      
+      // Should draw single pixel at center
+      expect(getPixel(canvas.buffer, canvas.width, 2, 2)).toEqual({ r: 255, g: 255, b: 0, a: 255 });
+      
+      // All other pixels should be transparent
+      expect(getPixel(canvas.buffer, canvas.width, 1, 2)).toEqual({ r: 0, g: 0, b: 0, a: 0 });
+      expect(getPixel(canvas.buffer, canvas.width, 3, 2)).toEqual({ r: 0, g: 0, b: 0, a: 0 });
+      expect(getPixel(canvas.buffer, canvas.width, 2, 1)).toEqual({ r: 0, g: 0, b: 0, a: 0 });
+      expect(getPixel(canvas.buffer, canvas.width, 2, 3)).toEqual({ r: 0, g: 0, b: 0, a: 0 });
+    });
+
+    it('should draw circles with different radii consistently', () => {
+      const canvas = createCanvas(13, 13);
+      
+      // Draw circles with radii 1 and 5
+      drawCircle(canvas.buffer, canvas.width, canvas.height, 6, 6, 1, 255, 0, 0, 255, false); // small
+      drawCircle(canvas.buffer, canvas.width, canvas.height, 6, 6, 5, 0, 0, 255, 255, false); // large
+      
+      // Check that radius 1 circle exists (should be roughly at distance 1 from center)
+      const smallCirclePixel = getPixel(canvas.buffer, canvas.width, 6, 5); // above center
+      expect(smallCirclePixel.r).toBe(255); // Should be red (small circle)
+      
+      // Check that larger circle exists further out
+      const largeCirclePixel = getPixel(canvas.buffer, canvas.width, 6, 1); // much further above
+      expect(largeCirclePixel.b).toBe(255); // Should be blue (large circle)
+    });
+
+    it('should handle circles at edge of canvas', () => {
+      const canvas = createCanvas(5, 5);
+      
+      // Draw circle centered at (0, 0) with radius 2 (partially off canvas)
+      expect(() => {
+        drawCircle(canvas.buffer, canvas.width, canvas.height, 0, 0, 2, 255, 0, 255, 255, false);
+      }).not.toThrow();
+      
+      // Should only draw pixels that are within bounds
+      const visiblePixel = getPixel(canvas.buffer, canvas.width, 2, 0);
+      expect(visiblePixel.r).toBe(255);
+      expect(visiblePixel.b).toBe(255);
+    });
+  });
+
+  describe('replaceColor (#23)', () => {
+    it('should replace all instances of a color', () => {
+      const canvas = createCanvas(4, 4);
+      
+      // Create a pattern with red and blue pixels
+      setPixel(canvas.buffer, canvas.width, 0, 0, 255, 0, 0, 255); // red
+      setPixel(canvas.buffer, canvas.width, 1, 1, 255, 0, 0, 255); // red
+      setPixel(canvas.buffer, canvas.width, 2, 2, 0, 0, 255, 255); // blue
+      setPixel(canvas.buffer, canvas.width, 3, 3, 255, 0, 0, 255); // red
+      
+      // Replace red with green
+      const oldColor = { r: 255, g: 0, b: 0, a: 255 };
+      const newColor = { r: 0, g: 255, b: 0, a: 255 };
+      replaceColor(canvas.buffer, canvas.width, canvas.height, oldColor, newColor);
+      
+      // Check that all red pixels are now green
+      expect(getPixel(canvas.buffer, canvas.width, 0, 0)).toEqual({ r: 0, g: 255, b: 0, a: 255 });
+      expect(getPixel(canvas.buffer, canvas.width, 1, 1)).toEqual({ r: 0, g: 255, b: 0, a: 255 });
+      expect(getPixel(canvas.buffer, canvas.width, 3, 3)).toEqual({ r: 0, g: 255, b: 0, a: 255 });
+      
+      // Check that blue pixel unchanged
+      expect(getPixel(canvas.buffer, canvas.width, 2, 2)).toEqual({ r: 0, g: 0, b: 255, a: 255 });
+    });
+
+    it('should replace color in mixed canvas', () => {
+      const canvas = createCanvas(3, 3);
+      
+      // Fill with different colors
+      drawRect(canvas.buffer, canvas.width, 0, 0, 1, 1, 255, 0, 0, 255, true); // red square
+      setPixel(canvas.buffer, canvas.width, 2, 0, 0, 255, 0, 255); // green
+      setPixel(canvas.buffer, canvas.width, 0, 2, 0, 255, 0, 255); // green
+      setPixel(canvas.buffer, canvas.width, 2, 2, 255, 255, 0, 128); // yellow, semi-transparent
+      
+      // Replace green with blue
+      const oldColor = { r: 0, g: 255, b: 0, a: 255 };
+      const newColor = { r: 0, g: 0, b: 255, a: 255 };
+      replaceColor(canvas.buffer, canvas.width, canvas.height, oldColor, newColor);
+      
+      // Check replacements
+      expect(getPixel(canvas.buffer, canvas.width, 2, 0)).toEqual({ r: 0, g: 0, b: 255, a: 255 });
+      expect(getPixel(canvas.buffer, canvas.width, 0, 2)).toEqual({ r: 0, g: 0, b: 255, a: 255 });
+      
+      // Check that other colors are unchanged
+      expect(getPixel(canvas.buffer, canvas.width, 0, 0)).toEqual({ r: 255, g: 0, b: 0, a: 255 }); // red
+      expect(getPixel(canvas.buffer, canvas.width, 2, 2)).toEqual({ r: 255, g: 255, b: 0, a: 128 }); // yellow
+    });
+
+    it('should do nothing when replacing color that does not exist', () => {
+      const canvas = createCanvas(2, 2);
+      
+      // Set some pixels
+      setPixel(canvas.buffer, canvas.width, 0, 0, 255, 0, 0, 255); // red
+      setPixel(canvas.buffer, canvas.width, 1, 1, 0, 255, 0, 255); // green
+      
+      // Try to replace blue (which doesn't exist) with yellow
+      const oldColor = { r: 0, g: 0, b: 255, a: 255 };
+      const newColor = { r: 255, g: 255, b: 0, a: 255 };
+      replaceColor(canvas.buffer, canvas.width, canvas.height, oldColor, newColor);
+      
+      // Check that nothing changed
+      expect(getPixel(canvas.buffer, canvas.width, 0, 0)).toEqual({ r: 255, g: 0, b: 0, a: 255 });
+      expect(getPixel(canvas.buffer, canvas.width, 1, 1)).toEqual({ r: 0, g: 255, b: 0, a: 255 });
+      expect(getPixel(canvas.buffer, canvas.width, 0, 1)).toEqual({ r: 0, g: 0, b: 0, a: 0 }); // transparent
+      expect(getPixel(canvas.buffer, canvas.width, 1, 0)).toEqual({ r: 0, g: 0, b: 0, a: 0 }); // transparent
+    });
+
+    it('should handle exact RGBA matches only', () => {
+      const canvas = createCanvas(3, 3);
+      
+      // Set pixels with similar but different colors
+      setPixel(canvas.buffer, canvas.width, 0, 0, 255, 0, 0, 255); // red, opaque
+      setPixel(canvas.buffer, canvas.width, 1, 0, 255, 0, 0, 128); // red, semi-transparent
+      setPixel(canvas.buffer, canvas.width, 2, 0, 254, 0, 0, 255); // almost red, opaque
+      
+      // Replace exact red opaque with green
+      const oldColor = { r: 255, g: 0, b: 0, a: 255 };
+      const newColor = { r: 0, g: 255, b: 0, a: 255 };
+      replaceColor(canvas.buffer, canvas.width, canvas.height, oldColor, newColor);
+      
+      // Only exact match should be replaced
+      expect(getPixel(canvas.buffer, canvas.width, 0, 0)).toEqual({ r: 0, g: 255, b: 0, a: 255 }); // replaced
+      expect(getPixel(canvas.buffer, canvas.width, 1, 0)).toEqual({ r: 255, g: 0, b: 0, a: 128 }); // unchanged (different alpha)
+      expect(getPixel(canvas.buffer, canvas.width, 2, 0)).toEqual({ r: 254, g: 0, b: 0, a: 255 }); // unchanged (different red)
+    });
+
+    it('should handle replacing transparent color', () => {
+      const canvas = createCanvas(2, 2);
+      
+      // Leave some pixels transparent, set others
+      setPixel(canvas.buffer, canvas.width, 1, 1, 255, 0, 0, 255); // red
+      
+      // Replace transparent with blue
+      const oldColor = { r: 0, g: 0, b: 0, a: 0 };
+      const newColor = { r: 0, g: 0, b: 255, a: 255 };
+      replaceColor(canvas.buffer, canvas.width, canvas.height, oldColor, newColor);
+      
+      // Transparent pixels should be blue now
+      expect(getPixel(canvas.buffer, canvas.width, 0, 0)).toEqual({ r: 0, g: 0, b: 255, a: 255 });
+      expect(getPixel(canvas.buffer, canvas.width, 0, 1)).toEqual({ r: 0, g: 0, b: 255, a: 255 });
+      expect(getPixel(canvas.buffer, canvas.width, 1, 0)).toEqual({ r: 0, g: 0, b: 255, a: 255 });
+      
+      // Red pixel should be unchanged
+      expect(getPixel(canvas.buffer, canvas.width, 1, 1)).toEqual({ r: 255, g: 0, b: 0, a: 255 });
     });
   });
 });

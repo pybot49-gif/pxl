@@ -69,5 +69,29 @@ declare function drawRect(buffer: Uint8Array, width: number, x1: number, y1: num
  * @param a Alpha component of fill color (0-255)
  */
 declare function floodFill(buffer: Uint8Array, width: number, startX: number, startY: number, r: number, g: number, b: number, a: number): void;
+/**
+ * Draw a circle using the midpoint circle algorithm
+ * @param buffer RGBA buffer (Uint8Array)
+ * @param width Buffer width in pixels
+ * @param height Buffer height in pixels
+ * @param cx Center X coordinate
+ * @param cy Center Y coordinate
+ * @param radius Circle radius
+ * @param r Red component (0-255)
+ * @param g Green component (0-255)
+ * @param b Blue component (0-255)
+ * @param a Alpha component (0-255)
+ * @param filled Whether to fill the circle (true) or just draw outline (false)
+ */
+declare function drawCircle(buffer: Uint8Array, width: number, height: number, cx: number, cy: number, radius: number, r: number, g: number, b: number, a: number, filled: boolean): void;
+/**
+ * Replace all pixels matching oldColor with newColor (exact RGBA match)
+ * @param buffer RGBA buffer (Uint8Array)
+ * @param width Buffer width in pixels
+ * @param height Buffer height in pixels
+ * @param oldColor Color to replace
+ * @param newColor Color to replace with
+ */
+declare function replaceColor(buffer: Uint8Array, width: number, height: number, oldColor: Color, newColor: Color): void;
 
-export { type Color, drawLine, drawRect, floodFill, getPixel, setPixel };
+export { type Color, drawCircle, drawLine, drawRect, floodFill, getPixel, replaceColor, setPixel };

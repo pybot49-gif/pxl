@@ -2,7 +2,8 @@ import { Command } from 'commander';
 import { existsSync } from 'fs';
 import { readPNG, writePNG } from '../io/png.js';
 import { parseHex } from '../core/color.js';
-import { setPixel, drawLine, drawRect, floodFill } from '../core/draw.js';
+import { setPixel, drawLine, drawRect, floodFill, drawCircle, replaceColor } from '../core/draw.js';
+import { addOutline } from '../core/outline.js';
 
 /**
  * Parse coordinates string in format "x,y" to x and y numbers
@@ -202,6 +203,155 @@ export function createFillCommand(): Command {
 }
 
 /**
+ * Draw circle command: draws a circle (filled or outlined)
+ */
+export function createCircleCommand(): Command {
+  return new Command('circle')
+    .description('Draw a circle')
+    .argument('<path>', 'PNG file path to modify')
+    .argument('<center>', 'Center coordinates in X,Y format (e.g., 5,5)')
+    .argument('<radius>', 'Circle radius (e.g., 3)')
+    .argument('<color>', 'Circle color in hex format (e.g., #FF0000)')
+    .option('-f, --fill', 'Fill the circle (default: outlined only)', false)
+    .action(async (path: string, center: string, radiusStr: string, color: string, options: { fill: boolean }) => {
+      try {
+        if (!existsSync(path)) {
+          throw new Error(`PNG file not found: ${path}`);
+        }
+        
+        const centerCoords = parseCoordinates(center);
+        const radius = parseInt(radiusStr, 10);
+        const parsedColor = parseHex(color);
+        
+        if (isNaN(radius) || radius < 0) {
+          throw new Error(`Invalid radius: ${radiusStr}. Must be a non-negative integer.`);
+        }
+        
+        const image = await readPNG(path);
+        
+        validateBounds(centerCoords.x, centerCoords.y, image.width, image.height);
+        
+        drawCircle(
+          image.buffer, image.width, image.height,
+          centerCoords.x, centerCoords.y, radius,
+          parsedColor.r, parsedColor.g, parsedColor.b, parsedColor.a,
+          options.fill
+        );
+        
+        await writePNG(image, path);
+        
+        const fillType = options.fill ? 'filled' : 'outlined';
+        console.log(`Drew ${fillType} circle at (${centerCoords.x},${centerCoords.y}) radius ${radius} with color ${color} in ${path}`);
+      } catch (error) {
+        console.error('Error drawing circle:', error instanceof Error ? error.message : String(error));
+        process.exit(1);
+      }
+    });
+}
+
+/**
+ * Replace color command: replaces all instances of a color with another color
+ */
+export function createReplaceCommand(): Command {
+  return new Command('replace')
+    .description('Replace all pixels of one color with another color')
+    .argument('<path>', 'PNG file path to modify')
+    .argument('<old-color>', 'Color to replace in hex format (e.g., #FF0000)')
+    .argument('<new-color>', 'Replacement color in hex format (e.g., #00FF00)')
+    .action(async (path: string, oldColorStr: string, newColorStr: string) => {
+      try {
+        if (!existsSync(path)) {
+          throw new Error(`PNG file not found: ${path}`);
+        }
+        
+        const oldColor = parseHex(oldColorStr);
+        const newColor = parseHex(newColorStr);
+        
+        const image = await readPNG(path);
+        
+        replaceColor(image.buffer, image.width, image.height, oldColor, newColor);
+        
+        await writePNG(image, path);
+        
+        console.log(`Replaced color ${oldColorStr} with ${newColorStr} in ${path}`);
+      } catch (error) {
+        console.error('Error replacing color:', error instanceof Error ? error.message : String(error));
+        process.exit(1);
+      }
+    });
+}
+
+/**
+ * Erase pixel command: sets a pixel to transparent
+ */
+export function createEraseCommand(): Command {
+  return new Command('erase')
+    .description('Erase a pixel (set to transparent)')
+    .argument('<path>', 'PNG file path to modify')
+    .argument('<coordinates>', 'Pixel coordinates in X,Y format (e.g., 3,4)')
+    .action(async (path: string, coordinates: string) => {
+      try {
+        if (!existsSync(path)) {
+          throw new Error(`PNG file not found: ${path}`);
+        }
+        
+        const { x, y } = parseCoordinates(coordinates);
+        
+        const image = await readPNG(path);
+        
+        validateBounds(x, y, image.width, image.height);
+        
+        // Set pixel to transparent (alpha = 0)
+        setPixel(image.buffer, image.width, x, y, 0, 0, 0, 0);
+        
+        await writePNG(image, path);
+        
+        console.log(`Erased pixel at (${x},${y}) in ${path}`);
+      } catch (error) {
+        console.error('Error erasing pixel:', error instanceof Error ? error.message : String(error));
+        process.exit(1);
+      }
+    });
+}
+
+/**
+ * Outline command: adds outline to sprite
+ */
+export function createOutlineCommand(): Command {
+  return new Command('outline')
+    .description('Add outline around sprite')
+    .argument('<path>', 'PNG file path to modify')
+    .argument('<color>', 'Outline color in hex format (e.g., #000000)')
+    .action(async (path: string, color: string) => {
+      try {
+        if (!existsSync(path)) {
+          throw new Error(`PNG file not found: ${path}`);
+        }
+        
+        const parsedColor = parseHex(color);
+        
+        const image = await readPNG(path);
+        
+        // Add outline and get new buffer
+        const outlineBuffer = addOutline(
+          image.buffer, image.width, image.height,
+          parsedColor.r, parsedColor.g, parsedColor.b, parsedColor.a
+        );
+        
+        // Replace the buffer with the outlined version
+        image.buffer = outlineBuffer;
+        
+        await writePNG(image, path);
+        
+        console.log(`Added ${color} outline to ${path}`);
+      } catch (error) {
+        console.error('Error adding outline:', error instanceof Error ? error.message : String(error));
+        process.exit(1);
+      }
+    });
+}
+
+/**
  * Add all draw commands to the parent command
  */
 export function addDrawCommands(program: Command): void {
@@ -213,4 +363,8 @@ export function addDrawCommands(program: Command): void {
   drawCmd.addCommand(createLineCommand());
   drawCmd.addCommand(createRectCommand());
   drawCmd.addCommand(createFillCommand());
+  drawCmd.addCommand(createCircleCommand());
+  drawCmd.addCommand(createReplaceCommand());
+  drawCmd.addCommand(createEraseCommand());
+  drawCmd.addCommand(createOutlineCommand());
 }
