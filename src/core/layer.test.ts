@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest';
-import { createLayeredCanvas, type LayeredCanvas, type Layer, type BlendMode } from './layer';
+import { createLayeredCanvas, type BlendMode } from './layer';
 
 describe('Layer data model (#27)', () => {
   describe('createLayeredCanvas', () => {

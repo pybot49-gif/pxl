@@ -145,7 +145,7 @@ function createLayerRemoveCommand(): Command {
             if (existsSync(oldLayerPath)) {
               unlinkSync(oldLayerPath);
             }
-          } catch (error) {
+          } catch {
             // Ignore file deletion errors
           }
         }
@@ -200,7 +200,10 @@ function createLayerReorderCommand(): Command {
         if (removedLayers.length === 0) {
           throw new Error('Failed to remove layer at specified index');
         }
-        const layer = removedLayers[0]!; // Safe because we checked length above
+        const layer = removedLayers[0];
+        if (layer === undefined) {
+          throw new Error("Failed to remove layer at specified index");
+        }
         canvas.layers.splice(targetIndex, 0, layer);
 
         // Write back
@@ -243,7 +246,11 @@ function createLayerOpacityCommand(): Command {
         }
 
         // Set opacity
-        canvas.layers[layerIndex]!.opacity = opacity;
+        const targetLayer = canvas.layers[layerIndex];
+        if (targetLayer === undefined) {
+          throw new Error("Layer not found at index");
+        }
+        targetLayer.opacity = opacity;
 
         // Write back
         await writeLayeredSprite(path, canvas);
@@ -285,7 +292,11 @@ function createLayerVisibleCommand(): Command {
         }
 
         // Set visibility
-        canvas.layers[layerIndex]!.visible = visible;
+        const targetLayer = canvas.layers[layerIndex];
+        if (targetLayer === undefined) {
+          throw new Error("Layer not found at index");
+        }
+        targetLayer.visible = visible;
 
         // Write back
         await writeLayeredSprite(path, canvas);
@@ -334,8 +345,11 @@ function createLayerMergeCommand(): Command {
           process.exit(1);
         }
 
-        const layer1 = canvas.layers[layer1Index]!;
-        const layer2 = canvas.layers[layer2Index]!;
+        const layer1 = canvas.layers[layer1Index];
+        const layer2 = canvas.layers[layer2Index];
+        if (layer1 === undefined || layer2 === undefined) {
+          throw new Error("Layer not found at index");
+        }
 
         // Determine order: lower index goes first (bottom), higher index goes on top
         const bottomLayer = layer1Index < layer2Index ? layer1 : layer2;
@@ -368,7 +382,7 @@ function createLayerMergeCommand(): Command {
           if (existsSync(oldLayerPath)) {
             unlinkSync(oldLayerPath);
           }
-        } catch (error) {
+        } catch {
           // Ignore cleanup errors
         }
 
@@ -416,7 +430,7 @@ function createLayerFlattenCommand(): Command {
             try {
               unlinkSync(oldLayerPath);
               i++;
-            } catch (error) {
+            } catch {
               break; // Stop on first deletion failure
             }
           } else {

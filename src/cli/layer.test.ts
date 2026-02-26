@@ -25,8 +25,9 @@ describe('CLI layer commands (#32-#37)', () => {
         encoding: 'utf-8',
         timeout: 10000
       });
-    } catch (error: any) {
-      throw new Error(`CLI command failed: ${error.message}\nStdout: ${error.stdout}\nStderr: ${error.stderr}`);
+    } catch (error: unknown) {
+      const e = error as { message?: string; stdout?: string; stderr?: string };
+      throw new Error(`CLI command failed: ${e.message ?? 'unknown'}\nStdout: ${e.stdout ?? ''}\nStderr: ${e.stderr ?? ''}`);
     }
   }
 
@@ -62,11 +63,11 @@ describe('CLI layer commands (#32-#37)', () => {
       }).toThrow(/Sprite not found/);
     });
 
-    test('should require name option', () => {
+    test('should require name option', async () => {
       // Create a sprite first
       const canvas = createLayeredCanvas(8, 8);
       const spritePath = resolve(testDir, 'test');
-      writeLayeredSprite(spritePath, canvas);
+      await writeLayeredSprite(spritePath, canvas);
 
       expect(() => {
         runPxl(`layer add test`);

@@ -10,7 +10,7 @@ describe('Meta file I/O (#30)', () => {
     // Create test directory
     try {
       await fs.mkdir(testDir, { recursive: true });
-    } catch (err) {
+    } catch {
       // Directory might already exist
     }
   });
@@ -19,7 +19,7 @@ describe('Meta file I/O (#30)', () => {
     // Clean up test directory
     try {
       await fs.rmdir(testDir, { recursive: true });
-    } catch (err) {
+    } catch {
       // Directory might not exist or have files
     }
   });

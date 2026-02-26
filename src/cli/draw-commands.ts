@@ -60,7 +60,7 @@ async function getDrawTarget(path: string, layerName?: string): Promise<{
     
     let targetLayerIndex = 0; // Default to first layer
     
-    if (layerName) {
+    if (layerName !== undefined && layerName.length > 0) {
       // Find the specified layer
       targetLayerIndex = canvas.layers.findIndex(layer => layer.name === layerName);
       if (targetLayerIndex === -1) {
@@ -79,7 +79,9 @@ async function getDrawTarget(path: string, layerName?: string): Promise<{
       height: canvas.height,
       save: () => writeLayeredSprite(basePath, canvas),
     };
-  } else if (existsSync(pngPath)) {
+  }
+  
+  if (existsSync(pngPath)) {
     // Handle regular PNG file
     if (layerName !== undefined && layerName.length > 0) {
       console.warn(`Warning: --layer "${layerName}" ignored for regular PNG file`);
@@ -93,9 +95,9 @@ async function getDrawTarget(path: string, layerName?: string): Promise<{
       height: image.height,
       save: () => writePNG(image, pngPath),
     };
-  } else {
-    throw new Error(`Sprite or PNG file not found: ${pngPath}`);
   }
+  
+  throw new Error(`Sprite or PNG file not found: ${pngPath}`);
 }
 
 /**
@@ -128,7 +130,7 @@ export function createPixelCommand(): Command {
         // Save changes
         await target.save();
         
-        const layerInfo = options.layer ? ` on layer "${options.layer}"` : '';
+        const layerInfo = (options.layer !== undefined && options.layer.length > 0) ? ` on layer "${options.layer}"` : '';
         console.log(`Set pixel at (${x},${y}) to ${color}${layerInfo} in ${path}`);
       } catch (error) {
         console.error('Error drawing pixel:', error instanceof Error ? error.message : String(error));
@@ -169,7 +171,7 @@ export function createLineCommand(): Command {
         
         await target.save();
         
-        const layerInfo = options.layer ? ` on layer "${options.layer}"` : '';
+        const layerInfo = (options.layer !== undefined && options.layer.length > 0) ? ` on layer "${options.layer}"` : '';
         console.log(`Drew line from (${startCoords.x},${startCoords.y}) to (${endCoords.x},${endCoords.y}) with color ${color}${layerInfo} in ${path}`);
       } catch (error) {
         console.error('Error drawing line:', error instanceof Error ? error.message : String(error));
