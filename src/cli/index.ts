@@ -4,6 +4,8 @@ import { resolve } from 'path';
 import { addSpriteCommands } from './sprite-commands.js';
 import { addDrawCommands } from './draw-commands.js';
 import { addLayerCommands } from './layer-commands.js';
+import { addPaletteCommands } from './palette-commands.js';
+import { addProjectCommands } from './project-commands.js';
 
 /**
  * Read package.json to get version information
@@ -34,6 +36,8 @@ function createProgram(): Command {
   addSpriteCommands(program);
   addDrawCommands(program);
   addLayerCommands(program);
+  addPaletteCommands(program);
+  addProjectCommands(program);
 
   return program;
 }
