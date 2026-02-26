@@ -1,6 +1,8 @@
 import { Command } from 'commander';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
+import { addSpriteCommands } from './sprite-commands.js';
+import { addDrawCommands } from './draw-commands.js';
 
 /**
  * Read package.json to get version information
@@ -27,8 +29,9 @@ function createProgram(): Command {
     .version(getVersion(), '-v, --version', 'display version number')
     .helpOption('-h, --help', 'display help for command');
 
-  // Future subcommands will be added here
-  // For now, just the basic version and help functionality
+  // Add subcommands
+  addSpriteCommands(program);
+  addDrawCommands(program);
 
   return program;
 }
