@@ -1,3 +1,6 @@
 // Core module: canvas operations, drawing primitives, color utilities
 // This module contains no I/O dependencies and works in both Node.js and browser
-export {};
+
+export { createCanvas, type Canvas } from './canvas.js';
+export { getPixel, setPixel, type Color } from './draw.js';
+export { parseHex, toHex } from './color.js';

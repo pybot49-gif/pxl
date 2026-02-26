@@ -1,20 +1,8 @@
 import { Command } from 'commander';
-import { readFileSync, mkdirSync, existsSync } from 'fs';
-import { resolve, dirname } from 'path';
+import { existsSync } from 'fs';
 import sharp from 'sharp';
 
-// src/cli/index.ts
-
-// src/core/canvas.ts
-function createCanvas(width, height) {
-  const bufferLength = width * height * 4;
-  const buffer = new Uint8Array(bufferLength);
-  return {
-    buffer,
-    width,
-    height
-  };
-}
+// src/cli/draw-commands.ts
 async function readPNG(path) {
   try {
     const image = sharp(path);
@@ -67,66 +55,6 @@ async function writePNG(imageData, path) {
       `Failed to write PNG ${path}: ${error instanceof Error ? error.message : String(error)}`
     );
   }
-}
-
-// src/cli/sprite-commands.ts
-function parseSize(sizeStr) {
-  const match = sizeStr.match(/^(\d+)x(\d+)$/);
-  if (!match) {
-    throw new Error(`Invalid size format: "${sizeStr}". Expected format: WIDTHxHEIGHT (e.g., 8x6)`);
-  }
-  const width = parseInt(match[1], 10);
-  const height = parseInt(match[2], 10);
-  if (width <= 0 || height <= 0) {
-    throw new Error(`Invalid dimensions: width and height must be positive numbers, got ${width}x${height}`);
-  }
-  return { width, height };
-}
-function createSpriteCommand() {
-  return new Command("create").description("Create a new transparent sprite PNG file").argument("<path>", "Output PNG file path").requiredOption("-s, --size <size>", "Sprite dimensions in WIDTHxHEIGHT format (e.g., 8x6)").action(async (path, options) => {
-    try {
-      const { width, height } = parseSize(options.size);
-      const canvas = createCanvas(width, height);
-      const outputDir = dirname(resolve(path));
-      mkdirSync(outputDir, { recursive: true });
-      await writePNG(canvas, path);
-      console.log(`Created ${width}x${height} transparent sprite: ${path}`);
-    } catch (error) {
-      console.error("Error creating sprite:", error instanceof Error ? error.message : String(error));
-      process.exit(1);
-    }
-  });
-}
-function createInfoCommand() {
-  return new Command("info").description("Display sprite information as JSON").argument("<path>", "PNG file path to analyze").action(async (path) => {
-    try {
-      if (!existsSync(path)) {
-        console.error(`Error: PNG file not found: ${path}`);
-        process.exit(1);
-      }
-      const image = await readPNG(path);
-      let nonTransparentCount = 0;
-      for (let i = 3; i < image.buffer.length; i += 4) {
-        if (image.buffer[i] > 0) {
-          nonTransparentCount++;
-        }
-      }
-      const info = {
-        width: image.width,
-        height: image.height,
-        nonTransparentPixels: nonTransparentCount
-      };
-      console.log(JSON.stringify(info));
-    } catch (error) {
-      console.error("Error reading sprite info:", error instanceof Error ? error.message : String(error));
-      process.exit(1);
-    }
-  });
-}
-function addSpriteCommands(program) {
-  const spriteCmd = program.command("sprite").description("Sprite management commands");
-  spriteCmd.addCommand(createSpriteCommand());
-  spriteCmd.addCommand(createInfoCommand());
 }
 
 // src/core/color.ts
@@ -221,29 +149,4 @@ function addDrawCommands(program) {
   drawCmd.addCommand(createPixelCommand());
 }
 
-// src/cli/index.ts
-function getVersion() {
-  try {
-    const packagePath = resolve(process.cwd(), "package.json");
-    const packageJson = JSON.parse(readFileSync(packagePath, "utf-8"));
-    return packageJson.version ?? "0.0.0";
-  } catch {
-    return "0.0.0";
-  }
-}
-function createProgram() {
-  const program = new Command();
-  program.name("pxl").description("Terminal-first pixel art editor and sprite animation tool").version(getVersion(), "-v, --version", "display version number").helpOption("-h, --help", "display help for command");
-  addSpriteCommands(program);
-  addDrawCommands(program);
-  return program;
-}
-function main() {
-  const program = createProgram();
-  program.parse();
-}
-if (import.meta.url === `file://${process.argv[1]}`) {
-  main();
-}
-
-export { createProgram, main };
+export { addDrawCommands, createPixelCommand };

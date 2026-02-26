@@ -1,42 +1,3 @@
-// src/core/canvas.ts
-function createCanvas(width, height) {
-  const bufferLength = width * height * 4;
-  const buffer = new Uint8Array(bufferLength);
-  return {
-    buffer,
-    width,
-    height
-  };
-}
-
-// src/core/draw.ts
-function getPixel(buffer, width, x, y) {
-  const offset = (y * width + x) * 4;
-  if (offset + 3 >= buffer.length) {
-    throw new Error(`Pixel coordinates out of bounds: (${x}, ${y})`);
-  }
-  return {
-    r: buffer[offset],
-    // Red
-    g: buffer[offset + 1],
-    // Green
-    b: buffer[offset + 2],
-    // Blue
-    a: buffer[offset + 3]
-    // Alpha
-  };
-}
-function setPixel(buffer, width, x, y, r, g, b, a) {
-  const offset = (y * width + x) * 4;
-  if (offset + 3 >= buffer.length) {
-    throw new Error(`Pixel coordinates out of bounds: (${x}, ${y})`);
-  }
-  buffer[offset] = r;
-  buffer[offset + 1] = g;
-  buffer[offset + 2] = b;
-  buffer[offset + 3] = a;
-}
-
 // src/core/color.ts
 function parseHex(hexString) {
   let hex = hexString.startsWith("#") ? hexString.slice(1) : hexString;
@@ -88,4 +49,4 @@ function toHex(color) {
   }
 }
 
-export { createCanvas, getPixel, parseHex, setPixel, toHex };
+export { parseHex, toHex };
