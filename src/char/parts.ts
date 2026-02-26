@@ -262,7 +262,7 @@ function drawSpikyHair(canvas: Canvas, colorRegions: { primary: [number, number]
 
 function drawLongHair(canvas: Canvas, colorRegions: { primary: [number, number][]; shadow: [number, number][] }): void {
   // Draw long flowing hair
-  const centerX = canvas.width / 2;
+  
   
   // Main hair mass
   drawRect(
@@ -294,7 +294,6 @@ function drawLongHair(canvas: Canvas, colorRegions: { primary: [number, number][
 }
 
 function drawCurlyHair(canvas: Canvas, colorRegions: { primary: [number, number][]; shadow: [number, number][] }): void {
-  const centerX = canvas.width / 2;
   
   // Draw curly hair with small circles
   for (let curl = 0; curl < 4; curl++) {
@@ -326,7 +325,6 @@ function drawCurlyHair(canvas: Canvas, colorRegions: { primary: [number, number]
 
 // Drawing functions for eye styles
 function drawRoundEyes(canvas: Canvas, colorRegions: { primary: [number, number][]; shadow: [number, number][] }): void {
-  const eyeSpacing = 2;
   const eyeRadius = 2;
   const leftEyeX = canvas.width / 4;
   const rightEyeX = canvas.width * 3 / 4;

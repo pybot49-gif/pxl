@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createHairPart, createEyePart, createTorsoPart, type CharacterPart, type PartSlot } from './parts.js';
+import { createHairPart, createEyePart, createTorsoPart } from './parts.js';
 import { getPixel } from '../core/draw.js';
 
 describe('Character Parts (#48)', () => {

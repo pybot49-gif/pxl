@@ -718,7 +718,6 @@ function drawSpikyHair(canvas, colorRegions) {
   }
 }
 function drawLongHair(canvas, colorRegions) {
-  canvas.width / 2;
   drawRect(
     canvas.buffer,
     canvas.width,
@@ -750,7 +749,6 @@ function drawLongHair(canvas, colorRegions) {
   }
 }
 function drawCurlyHair(canvas, colorRegions) {
-  canvas.width / 2;
   for (let curl = 0; curl < 4; curl++) {
     const curlX = Math.floor(2 + curl % 2 * 8 + (curl < 2 ? 4 : 0));
     const curlY = Math.floor(2 + Math.floor(curl / 2) * 6);

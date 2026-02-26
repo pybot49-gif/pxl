@@ -6,11 +6,10 @@ import {
   equipPart,
   unequipPart,
   setCharacterColors,
-  type Character,
   type CharacterData
 } from './character.js';
 import { createHairPart, createEyePart, createTorsoPart } from './parts.js';
-import { createColorScheme } from './color.js';
+// color.js used indirectly via character functions
 
 describe('Character Data Model (#52)', () => {
   describe('createCharacter', () => {
@@ -49,7 +48,9 @@ describe('Character Data Model (#52)', () => {
     });
 
     it('should validate build and height values', () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       expect(() => createCharacter('test', 'invalid' as any, 'average')).toThrow('Invalid build type');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       expect(() => createCharacter('test', 'normal', 'invalid' as any)).toThrow('Invalid height type');
     });
   });
@@ -118,7 +119,7 @@ describe('Character Data Model (#52)', () => {
       }).not.toThrow();
     });
 
-    it('should update lastModified timestamp', () => {
+    it('should update lastModified timestamp', async () => {
       const character = createCharacter('test', 'normal', 'average');
       const hair = createHairPart('spiky');
       
@@ -126,8 +127,7 @@ describe('Character Data Model (#52)', () => {
       const beforeUnequip = updatedCharacter.lastModified;
       
       // Small delay to ensure timestamp difference
-      const delayPromise = new Promise(resolve => setTimeout(resolve, 1));
-      await delayPromise;
+      await new Promise(resolve => setTimeout(resolve, 1));
       
       updatedCharacter = unequipPart(updatedCharacter, 'hair-front');
       expect(updatedCharacter.lastModified.getTime()).toBeGreaterThan(beforeUnequip.getTime());

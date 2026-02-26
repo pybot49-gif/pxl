@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createBaseBody, type BaseBodySprite } from './body.js';
+import { createBaseBody } from './body.js';
 import { getPixel } from '../core/draw.js';
 
 describe('Base Body Template (#46)', () => {
@@ -25,8 +25,8 @@ describe('Base Body Template (#46)', () => {
       const torsoPixel = getPixel(body.buffer, body.width, 16, 24);
       expect(torsoPixel.a).toBeGreaterThan(0); // Not transparent
       
-      // Legs area (lower third)
-      const legsPixel = getPixel(body.buffer, body.width, 16, 36);
+      // Legs area (lower third) - check inside a leg, not between them
+      const legsPixel = getPixel(body.buffer, body.width, 12, 38);
       expect(legsPixel.a).toBeGreaterThan(0); // Not transparent
     });
 
@@ -94,7 +94,13 @@ describe('Base Body Template (#46)', () => {
       const body = createBaseBody('normal', 'average');
       
       // Find outline pixels (should be darker than body)
-      const outlinePixel = getPixel(body.buffer, body.width, 15, 8); // Left edge of head
+      // Scan for first visible pixel on row 8 — that's the outline edge
+      let outlineX = 0;
+      for (let x = 0; x < body.width; x++) {
+        const p = getPixel(body.buffer, body.width, x, 8);
+        if (p.a > 0) { outlineX = x; break; }
+      }
+      const outlinePixel = getPixel(body.buffer, body.width, outlineX, 8);
       const bodyPixel = getPixel(body.buffer, body.width, 16, 12); // Center of head
       
       // Outline should be darker

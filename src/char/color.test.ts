@@ -3,10 +3,9 @@ import {
   applyColorToPart, 
   applyColorScheme, 
   createColorScheme,
-  type ColorScheme,
   type Color
 } from './color.js';
-import { createHairPart, createTorsoPart, type CharacterPart } from './parts.js';
+import { createHairPart, createTorsoPart } from './parts.js';
 import { getPixel } from '../core/draw.js';
 
 describe('Color Application System (#50)', () => {
@@ -23,7 +22,7 @@ describe('Color Application System (#50)', () => {
       
       // Check that primary color regions have been updated
       if (hair.colorRegions.primary.length > 0) {
-        const [x, y] = hair.colorRegions.primary[0]!;
+        const [x, y] = hair.colorRegions.primary[0] as [number, number];
         const pixel = getPixel(coloredHair.buffer, coloredHair.width, x, y);
         
         expect(pixel.r).toBe(newColor.r);
@@ -41,7 +40,7 @@ describe('Color Application System (#50)', () => {
       
       // Check shadow regions have been updated
       if (hair.colorRegions.shadow.length > 0) {
-        const [x, y] = hair.colorRegions.shadow[0]!;
+        const [x, y] = hair.colorRegions.shadow[0] as [number, number];
         const pixel = getPixel(coloredHair.buffer, coloredHair.width, x, y);
         
         expect(pixel.r).toBe(shadowColor.r);
@@ -110,7 +109,7 @@ describe('Color Application System (#50)', () => {
       // Check primary colors are set correctly
       expect(scheme.skin.primary.r).toBe(255);
       expect(scheme.hair.primary.g).toBe(67);
-      expect(scheme.eyes.primary.b).toBe(188);
+      expect(scheme.eyes.b).toBe(188);
     });
 
     it('should auto-generate shadow and highlight colors', () => {
@@ -147,7 +146,7 @@ describe('Color Application System (#50)', () => {
       const allColors = [
         scheme.skin.primary, scheme.skin.shadow, scheme.skin.highlight,
         scheme.hair.primary, scheme.hair.shadow, scheme.hair.highlight,
-        scheme.eyes.primary, scheme.outfitPrimary.primary, scheme.outfitSecondary.primary
+        scheme.eyes, scheme.outfitPrimary.primary, scheme.outfitSecondary.primary
       ];
       
       allColors.forEach(color => {
@@ -181,7 +180,7 @@ describe('Color Application System (#50)', () => {
       
       // Check that primary regions got the outfit primary color
       if (torso.colorRegions.primary.length > 0) {
-        const [x, y] = torso.colorRegions.primary[0]!;
+        const [x, y] = torso.colorRegions.primary[0] as [number, number];
         const pixel = getPixel(coloredTorso.buffer, coloredTorso.width, x, y);
         
         expect(pixel.r).toBe(scheme.outfitPrimary.primary.r);
@@ -204,7 +203,7 @@ describe('Color Application System (#50)', () => {
       
       // Should apply hair color scheme
       if (hair.colorRegions.primary.length > 0) {
-        const [x, y] = hair.colorRegions.primary[0]!;
+        const [x, y] = hair.colorRegions.primary[0] as [number, number];
         const pixel = getPixel(coloredHair.buffer, coloredHair.width, x, y);
         
         expect(pixel.r).toBe(scheme.hair.primary.r);
@@ -225,6 +224,7 @@ describe('Color Application System (#50)', () => {
       
       // Use invalid category - should not crash
       expect(() => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const result = applyColorScheme(hair, scheme, 'unknown-category' as any);
         expect(result).toBeDefined();
       }).not.toThrow();

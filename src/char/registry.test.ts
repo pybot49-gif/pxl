@@ -6,8 +6,6 @@ import {
   listParts, 
   searchParts,
   getPartsBySlot,
-  type PartRegistry,
-  type CharacterPart 
 } from './registry.js';
 import { createHairPart, createEyePart, createTorsoPart } from './parts.js';
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createBodyTemplate, loadTemplate, validateTemplate, type BodyTemplate, type AnchorPoint } from './template.js';
+import { createBodyTemplate, validateTemplate, type BodyTemplate } from './template.js';
 
 describe('Body Template System (#47)', () => {
   describe('createBodyTemplate', () => {
@@ -66,8 +66,7 @@ describe('Body Template System (#47)', () => {
     });
 
     it('should reject template with invalid dimensions', () => {
-      const template = createBodyTemplate('invalid', 0, 48, 'chibi');
-      expect(() => validateTemplate(template)).toThrow('Invalid template dimensions');
+      expect(() => createBodyTemplate('invalid', 0, 48, 'chibi')).toThrow('Invalid template dimensions');
     });
 
     it('should reject template with anchor points outside bounds', () => {

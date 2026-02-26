@@ -746,7 +746,6 @@ function drawSpikyHair(canvas, colorRegions) {
   }
 }
 function drawLongHair(canvas, colorRegions) {
-  canvas.width / 2;
   drawRect(
     canvas.buffer,
     canvas.width,
@@ -778,7 +777,6 @@ function drawLongHair(canvas, colorRegions) {
   }
 }
 function drawCurlyHair(canvas, colorRegions) {
-  canvas.width / 2;
   for (let curl = 0; curl < 4; curl++) {
     const curlX = Math.floor(2 + curl % 2 * 8 + (curl < 2 ? 4 : 0));
     const curlY = Math.floor(2 + Math.floor(curl / 2) * 6);
@@ -1536,8 +1534,12 @@ function createPartFromStyle(slot, style) {
 }
 function parseColorValue(colorValue, category) {
   const presets = COLOR_PRESETS;
-  if (presets[category] && presets[category][colorValue]) {
-    return presets[category][colorValue];
+  const categoryPresets = presets[category];
+  if (categoryPresets !== void 0) {
+    const preset = categoryPresets[colorValue];
+    if (preset !== void 0) {
+      return preset;
+    }
   }
   if (colorValue.startsWith("#")) {
     return parseHex(colorValue);
@@ -1551,7 +1553,9 @@ function createCharCreateCommand() {
       if (existsSync(charDir)) {
         throw new Error(`Character "${name}" already exists`);
       }
-      const character = createCharacter(name, options.build, options.height);
+      const build = options.build;
+      const height = options.height;
+      const character = createCharacter(name, build, height);
       saveCharacterToDisk(character);
       console.log(`Created character: ${name} (${options.build}/${options.height})`);
     } catch (error) {
@@ -1605,7 +1609,8 @@ function createCharShowCommand() {
       } else {
         for (const slot of equippedSlots) {
           const part = character.equippedParts[slot];
-          console.log(`  ${slot}: ${part?.id || "unknown"}`);
+          const partId = part !== void 0 ? part.id : "unknown";
+          console.log(`  ${slot}: ${partId}`);
         }
       }
       console.log("\nColor Scheme:");
@@ -1626,7 +1631,8 @@ function createCharEquipCommand() {
       validatePartSlot(options.slot);
       const character = loadCharacterFromDisk(name);
       const part = createPartFromStyle(options.slot, options.part);
-      const updatedCharacter = equipPart(character, options.slot, part);
+      const slotKey = options.slot;
+      const updatedCharacter = equipPart(character, slotKey, part);
       saveCharacterToDisk(updatedCharacter);
       console.log(`Equipped ${part.id} to slot ${options.slot} on character ${name}`);
     } catch (error) {
@@ -1640,20 +1646,20 @@ function createCharColorCommand() {
     try {
       const character = loadCharacterFromDisk(name);
       const colorUpdates = {};
-      if (options.skin) {
-        colorUpdates.skin = parseColorValue(options.skin, "skin");
+      if (options.skin !== void 0 && options.skin !== "") {
+        colorUpdates["skin"] = parseColorValue(options.skin, "skin");
       }
-      if (options.hair) {
-        colorUpdates.hair = parseColorValue(options.hair, "hair");
+      if (options.hair !== void 0 && options.hair !== "") {
+        colorUpdates["hair"] = parseColorValue(options.hair, "hair");
       }
-      if (options.eyes) {
-        colorUpdates.eyes = parseColorValue(options.eyes, "eyes");
+      if (options.eyes !== void 0 && options.eyes !== "") {
+        colorUpdates["eyes"] = parseColorValue(options.eyes, "eyes");
       }
-      if (options.outfitPrimary) {
-        colorUpdates.outfitPrimary = parseColorValue(options.outfitPrimary, "outfit");
+      if (options.outfitPrimary !== void 0 && options.outfitPrimary !== "") {
+        colorUpdates["outfitPrimary"] = parseColorValue(options.outfitPrimary, "outfit");
       }
-      if (options.outfitSecondary) {
-        colorUpdates.outfitSecondary = parseColorValue(options.outfitSecondary, "outfit");
+      if (options.outfitSecondary !== void 0 && options.outfitSecondary !== "") {
+        colorUpdates["outfitSecondary"] = parseColorValue(options.outfitSecondary, "outfit");
       }
       if (Object.keys(colorUpdates).length === 0) {
         console.log("No color options provided. Use --skin, --hair, --eyes, --outfit-primary, or --outfit-secondary");
@@ -1674,14 +1680,14 @@ function createCharRenderCommand() {
       const character = loadCharacterFromDisk(name);
       const baseBody = createBaseBody(character.build, character.height);
       const assembled = assembleCharacter(baseBody, character.equippedParts, character.colorScheme);
-      const outputPath = options.output || join(getCharDir(name), "render.png");
+      const outputPath = options.output ?? join(getCharDir(name), "render.png");
       mkdirSync(dirname(outputPath), { recursive: true });
       await writePNG({
         buffer: assembled.buffer,
         width: assembled.width,
         height: assembled.height
       }, outputPath);
-      if (options.output) {
+      if (options.output !== void 0 && options.output !== "") {
         console.log(`Rendered character to ${outputPath}`);
       } else {
         console.log(`Rendered character: ${name}`);
@@ -1695,7 +1701,7 @@ function createCharRenderCommand() {
 function createCharRemoveCommand() {
   return new Command("remove").description("Remove a character").argument("<name>", "Character name").option("--confirm", "Confirm character removal").action(async (name, options) => {
     try {
-      if (!options.confirm) {
+      if (options.confirm !== true) {
         throw new Error("Character removal requires --confirm flag for safety");
       }
       const charDir = getCharDir(name);
@@ -1714,11 +1720,11 @@ function createCharExportCommand() {
   return new Command("export").description("Export character data").argument("<name>", "Character name").option("--output <path>", "Output JSON path (default: chars/<name>/export.json)").option("--include-renders", "Include rendered images in export").action(async (name, options) => {
     try {
       const character = loadCharacterFromDisk(name);
-      const outputPath = options.output || join(getCharDir(name), "export.json");
+      const outputPath = options.output ?? join(getCharDir(name), "export.json");
       mkdirSync(dirname(outputPath), { recursive: true });
       const exportData = saveCharacter(character);
       writeFileSync(outputPath, exportData, "utf-8");
-      if (options.includeRenders) {
+      if (options.includeRenders === true) {
         const baseBody = createBaseBody(character.build, character.height);
         const assembled = assembleCharacter(baseBody, character.equippedParts, character.colorScheme);
         const renderPath = outputPath.replace(".json", ".png");
@@ -1728,12 +1734,10 @@ function createCharExportCommand() {
           height: assembled.height
         }, renderPath);
         console.log(`Exported character with renders to ${dirname(outputPath)}`);
+      } else if (options.output !== void 0 && options.output !== "") {
+        console.log(`Exported character to ${outputPath}`);
       } else {
-        if (options.output) {
-          console.log(`Exported character to ${outputPath}`);
-        } else {
-          console.log(`Exported character: ${name}`);
-        }
+        console.log(`Exported character: ${name}`);
       }
     } catch (error) {
       console.error("Error exporting character:", error instanceof Error ? error.message : String(error));

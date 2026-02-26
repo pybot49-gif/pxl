@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { readFileSync, mkdirSync, existsSync, unlinkSync, readdirSync, rmSync, writeFileSync, promises } from 'fs';
+import { readFileSync, mkdirSync, existsSync, unlinkSync, writeFileSync, readdirSync, statSync, rmSync, promises } from 'fs';
 import { resolve, dirname, join } from 'path';
 import sharp from 'sharp';
 
@@ -1164,6 +1164,648 @@ function addLayerCommands(program) {
   layerCmd.addCommand(createLayerFlattenCommand());
 }
 
+// src/core/palette.ts
+function createPalette(name, colors) {
+  return { name, colors };
+}
+function paletteToJson(palette) {
+  const serialized = {
+    name: palette.name,
+    colors: palette.colors.map((color) => [color.r, color.g, color.b, color.a])
+  };
+  return JSON.stringify(serialized);
+}
+function paletteFromJson(json) {
+  const parsed = JSON.parse(json);
+  if (typeof parsed.name !== "string") {
+    throw new Error("Invalid palette JSON: name must be a string");
+  }
+  if (!Array.isArray(parsed.colors)) {
+    throw new Error("Invalid palette JSON: colors must be an array");
+  }
+  const colors = parsed.colors.map((colorArray) => {
+    if (!Array.isArray(colorArray) || colorArray.length !== 4) {
+      throw new Error("Invalid palette JSON: each color must be an array of 4 numbers [r,g,b,a]");
+    }
+    const [r, g, b, a] = colorArray;
+    if (typeof r !== "number" || typeof g !== "number" || typeof b !== "number" || typeof a !== "number") {
+      throw new Error("Invalid palette JSON: color components must be numbers");
+    }
+    return { r, g, b, a };
+  });
+  return { name: parsed.name, colors };
+}
+function extractPalette(buffer, width, height) {
+  const uniqueColors = /* @__PURE__ */ new Map();
+  for (let i = 0; i < buffer.length; i += 4) {
+    const r = buffer[i] ?? 0;
+    const g = buffer[i + 1] ?? 0;
+    const b = buffer[i + 2] ?? 0;
+    const a = buffer[i + 3] ?? 0;
+    const key = `${r},${g},${b},${a}`;
+    if (!uniqueColors.has(key)) {
+      uniqueColors.set(key, { r, g, b, a });
+    }
+  }
+  return Array.from(uniqueColors.values());
+}
+function colorDistance(color1, color2) {
+  const deltaR = color1.r - color2.r;
+  const deltaG = color1.g - color2.g;
+  const deltaB = color1.b - color2.b;
+  return Math.sqrt(deltaR * deltaR + deltaG * deltaG + deltaB * deltaB);
+}
+function findNearestColor(color, palette) {
+  if (palette.length === 0) {
+    return color;
+  }
+  const firstColor = palette[0];
+  if (firstColor === void 0) {
+    return color;
+  }
+  let nearestColor = firstColor;
+  let minDistance = colorDistance(color, nearestColor);
+  for (let i = 1; i < palette.length; i++) {
+    const paletteColor = palette[i];
+    if (paletteColor !== void 0) {
+      const distance = colorDistance(color, paletteColor);
+      if (distance < minDistance) {
+        minDistance = distance;
+        nearestColor = paletteColor;
+      }
+    }
+  }
+  return nearestColor;
+}
+function remapToPalette(buffer, width, height, palette) {
+  if (palette.length === 0) {
+    return new Uint8Array(buffer);
+  }
+  const outputBuffer = new Uint8Array(buffer.length);
+  for (let i = 0; i < buffer.length; i += 4) {
+    const originalColor = {
+      r: buffer[i] ?? 0,
+      g: buffer[i + 1] ?? 0,
+      b: buffer[i + 2] ?? 0,
+      a: buffer[i + 3] ?? 0
+    };
+    const nearestColor = findNearestColor(originalColor, palette);
+    outputBuffer[i] = nearestColor.r;
+    outputBuffer[i + 1] = nearestColor.g;
+    outputBuffer[i + 2] = nearestColor.b;
+    outputBuffer[i + 3] = originalColor.a;
+  }
+  return outputBuffer;
+}
+var PRESET_PALETTES = {
+  gameboy: createPalette("GameBoy", [
+    { r: 15, g: 56, b: 15, a: 255 },
+    // Dark green
+    { r: 48, g: 98, b: 48, a: 255 },
+    // Medium green
+    { r: 139, g: 172, b: 15, a: 255 },
+    // Light green
+    { r: 155, g: 188, b: 15, a: 255 }
+    // Lightest green
+  ]),
+  pico8: createPalette("PICO-8", [
+    { r: 0, g: 0, b: 0, a: 255 },
+    // Black
+    { r: 29, g: 43, b: 83, a: 255 },
+    // Dark blue
+    { r: 126, g: 37, b: 83, a: 255 },
+    // Dark purple
+    { r: 0, g: 135, b: 81, a: 255 },
+    // Dark green
+    { r: 171, g: 82, b: 54, a: 255 },
+    // Brown
+    { r: 95, g: 87, b: 79, a: 255 },
+    // Dark gray
+    { r: 194, g: 195, b: 199, a: 255 },
+    // Light gray
+    { r: 255, g: 241, b: 232, a: 255 },
+    // White
+    { r: 255, g: 0, b: 77, a: 255 },
+    // Red
+    { r: 255, g: 163, b: 0, a: 255 },
+    // Orange
+    { r: 255, g: 236, b: 39, a: 255 },
+    // Yellow
+    { r: 0, g: 228, b: 54, a: 255 },
+    // Green
+    { r: 41, g: 173, b: 255, a: 255 },
+    // Blue
+    { r: 131, g: 118, b: 156, a: 255 },
+    // Indigo
+    { r: 255, g: 119, b: 168, a: 255 },
+    // Pink
+    { r: 255, g: 204, b: 170, a: 255 }
+    // Peach
+  ]),
+  nes: createPalette("NES", [
+    { r: 84, g: 84, b: 84, a: 255 },
+    { r: 0, g: 30, b: 116, a: 255 },
+    { r: 8, g: 16, b: 144, a: 255 },
+    { r: 48, g: 0, b: 136, a: 255 },
+    { r: 68, g: 0, b: 100, a: 255 },
+    { r: 92, g: 0, b: 48, a: 255 },
+    { r: 84, g: 4, b: 0, a: 255 },
+    { r: 60, g: 24, b: 0, a: 255 },
+    { r: 32, g: 42, b: 0, a: 255 },
+    { r: 8, g: 58, b: 0, a: 255 },
+    { r: 0, g: 64, b: 0, a: 255 },
+    { r: 0, g: 60, b: 0, a: 255 },
+    { r: 0, g: 50, b: 60, a: 255 },
+    { r: 0, g: 0, b: 0, a: 255 },
+    { r: 152, g: 150, b: 152, a: 255 },
+    { r: 8, g: 76, b: 196, a: 255 },
+    { r: 48, g: 50, b: 236, a: 255 },
+    { r: 92, g: 30, b: 228, a: 255 },
+    { r: 136, g: 20, b: 176, a: 255 },
+    { r: 160, g: 20, b: 100, a: 255 },
+    { r: 152, g: 34, b: 32, a: 255 },
+    { r: 120, g: 60, b: 0, a: 255 },
+    { r: 84, g: 90, b: 0, a: 255 },
+    { r: 40, g: 114, b: 0, a: 255 },
+    { r: 8, g: 124, b: 0, a: 255 },
+    { r: 0, g: 118, b: 40, a: 255 },
+    { r: 0, g: 102, b: 120, a: 255 },
+    { r: 236, g: 238, b: 236, a: 255 },
+    { r: 76, g: 154, b: 236, a: 255 },
+    { r: 120, g: 124, b: 236, a: 255 },
+    { r: 176, g: 98, b: 236, a: 255 },
+    { r: 228, g: 84, b: 236, a: 255 },
+    { r: 236, g: 88, b: 180, a: 255 },
+    { r: 236, g: 106, b: 100, a: 255 },
+    { r: 212, g: 136, b: 32, a: 255 },
+    { r: 160, g: 170, b: 0, a: 255 },
+    { r: 116, g: 196, b: 0, a: 255 },
+    { r: 76, g: 208, b: 32, a: 255 },
+    { r: 56, g: 204, b: 108, a: 255 },
+    { r: 56, g: 180, b: 204, a: 255 },
+    { r: 60, g: 60, b: 60, a: 255 },
+    { r: 168, g: 204, b: 236, a: 255 },
+    { r: 188, g: 188, b: 236, a: 255 },
+    { r: 212, g: 178, b: 236, a: 255 },
+    { r: 236, g: 174, b: 236, a: 255 },
+    { r: 236, g: 174, b: 212, a: 255 },
+    { r: 236, g: 180, b: 176, a: 255 },
+    { r: 228, g: 196, b: 144, a: 255 },
+    { r: 204, g: 210, b: 120, a: 255 },
+    { r: 180, g: 222, b: 120, a: 255 },
+    { r: 168, g: 226, b: 144, a: 255 },
+    { r: 152, g: 226, b: 180, a: 255 },
+    { r: 160, g: 214, b: 228, a: 255 },
+    { r: 160, g: 162, b: 160, a: 255 }
+  ]),
+  endesga32: createPalette("Endesga-32", [
+    { r: 190, g: 38, b: 51, a: 255 },
+    { r: 224, g: 111, b: 139, a: 255 },
+    { r: 73, g: 60, b: 43, a: 255 },
+    { r: 164, g: 100, b: 34, a: 255 },
+    { r: 235, g: 137, b: 49, a: 255 },
+    { r: 247, g: 226, b: 107, a: 255 },
+    { r: 47, g: 72, b: 78, a: 255 },
+    { r: 68, g: 137, b: 115, a: 255 },
+    { r: 163, g: 206, b: 39, a: 255 },
+    { r: 27, g: 38, b: 50, a: 255 },
+    { r: 0, g: 87, b: 132, a: 255 },
+    { r: 49, g: 162, b: 242, a: 255 },
+    { r: 178, g: 220, b: 239, a: 255 },
+    { r: 68, g: 36, b: 52, a: 255 },
+    { r: 133, g: 76, b: 48, a: 255 },
+    { r: 254, g: 174, b: 52, a: 255 },
+    { r: 254, g: 231, b: 97, a: 255 },
+    { r: 99, g: 199, b: 77, a: 255 },
+    { r: 62, g: 137, b: 72, a: 255 },
+    { r: 38, g: 92, b: 66, a: 255 },
+    { r: 25, g: 60, b: 62, a: 255 },
+    { r: 18, g: 78, b: 137, a: 255 },
+    { r: 0, g: 149, b: 233, a: 255 },
+    { r: 44, g: 232, b: 245, a: 255 },
+    { r: 255, g: 255, b: 255, a: 255 },
+    { r: 192, g: 203, b: 220, a: 255 },
+    { r: 139, g: 155, b: 180, a: 255 },
+    { r: 90, g: 105, b: 136, a: 255 },
+    { r: 58, g: 68, b: 102, a: 255 },
+    { r: 38, g: 43, b: 68, a: 255 },
+    { r: 24, g: 20, b: 37, a: 255 },
+    { r: 255, g: 0, b: 68, a: 255 }
+  ])
+};
+
+// src/cli/palette-commands.ts
+function createPaletteCreateCommand() {
+  return new Command("create").description("Create a new palette from hex colors").argument("<name>", "Palette name").requiredOption("--colors <colors>", 'Comma-separated hex colors (e.g., "#FF0000,#00FF00,#0000FF")').action(async (name, options) => {
+    try {
+      const hexColors = options.colors.split(",").map((hex) => hex.trim());
+      const colors = hexColors.map((hex) => {
+        try {
+          return parseHex(hex);
+        } catch (error) {
+          throw new Error(`Invalid hex color "${hex}": ${error instanceof Error ? error.message : String(error)}`);
+        }
+      });
+      const palette = createPalette(name, colors);
+      const palettesDir = resolve(process.cwd(), "palettes");
+      mkdirSync(palettesDir, { recursive: true });
+      const filename = `${name.toLowerCase().replace(/[^a-z0-9-]/g, "-")}.json`;
+      const filepath = resolve(palettesDir, filename);
+      const json = paletteToJson(palette);
+      writeFileSync(filepath, json, "utf-8");
+      console.log(`Created palette "${name}" with ${colors.length} colors: ${filepath}`);
+    } catch (error) {
+      console.error("Error creating palette:", error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  });
+}
+function createPalettePresetCommand() {
+  return new Command("preset").description("Create a palette from a built-in preset").argument("<name>", "Preset name (gameboy, pico8, nes, endesga32)").action(async (presetName) => {
+    try {
+      const presets = PRESET_PALETTES;
+      const palette = presets[presetName.toLowerCase()];
+      if (palette === void 0) {
+        const availablePresets = Object.keys(presets).join(", ");
+        throw new Error(`Unknown preset "${presetName}". Available presets: ${availablePresets}`);
+      }
+      const palettesDir = resolve(process.cwd(), "palettes");
+      mkdirSync(palettesDir, { recursive: true });
+      const filename = `${presetName.toLowerCase()}.json`;
+      const filepath = resolve(palettesDir, filename);
+      const json = paletteToJson(palette);
+      writeFileSync(filepath, json, "utf-8");
+      console.log(`Created ${palette.name} preset palette with ${palette.colors.length} colors: ${filepath}`);
+    } catch (error) {
+      console.error("Error creating preset palette:", error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  });
+}
+function createPaletteImportCommand() {
+  return new Command("import").description("Extract a palette from an image").argument("<name>", "Palette name").requiredOption("--from <image>", "Source image file path").action(async (name, options) => {
+    try {
+      if (!existsSync(options.from)) {
+        throw new Error(`Source image not found: ${options.from}`);
+      }
+      const image = await readPNG(options.from);
+      const colors = extractPalette(image.buffer, image.width, image.height);
+      if (colors.length === 0) {
+        throw new Error("No colors found in source image");
+      }
+      const palette = createPalette(name, colors);
+      const palettesDir = resolve(process.cwd(), "palettes");
+      mkdirSync(palettesDir, { recursive: true });
+      const filename = `${name.toLowerCase().replace(/[^a-z0-9-]/g, "-")}.json`;
+      const filepath = resolve(palettesDir, filename);
+      const json = paletteToJson(palette);
+      writeFileSync(filepath, json, "utf-8");
+      console.log(`Extracted palette "${name}" with ${colors.length} unique colors from ${options.from}: ${filepath}`);
+    } catch (error) {
+      console.error("Error importing palette:", error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  });
+}
+function loadPalette(paletteName) {
+  const palettesDir = resolve(process.cwd(), "palettes");
+  const filename = paletteName.endsWith(".json") ? paletteName : `${paletteName}.json`;
+  const filepath = resolve(palettesDir, filename);
+  if (!existsSync(filepath)) {
+    throw new Error(`Palette not found: ${filepath}. Use "pxl palette list" to see available palettes.`);
+  }
+  const json = readFileSync(filepath, "utf-8");
+  return paletteFromJson(json);
+}
+function createPaletteApplyCommand() {
+  return new Command("apply").description("Remap sprite colors to a palette").argument("<path>", "Sprite PNG file path").requiredOption("--palette <name>", "Palette name (without .json extension)").action(async (path, options) => {
+    try {
+      if (!existsSync(path)) {
+        throw new Error(`Sprite not found: ${path}`);
+      }
+      const palette = loadPalette(options.palette);
+      const image = await readPNG(path);
+      const remappedBuffer = remapToPalette(image.buffer, image.width, image.height, palette.colors);
+      await writePNG({
+        buffer: remappedBuffer,
+        width: image.width,
+        height: image.height
+      }, path);
+      console.log(`Applied palette "${palette.name}" to ${path}`);
+    } catch (error) {
+      console.error("Error applying palette:", error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  });
+}
+function createPaletteListCommand() {
+  return new Command("list").description("List available palettes in the project").action(async () => {
+    try {
+      const palettesDir = resolve(process.cwd(), "palettes");
+      if (!existsSync(palettesDir)) {
+        console.log('No palettes directory found. Use "pxl palette create" or "pxl palette preset" to create palettes.');
+        return;
+      }
+      const files = readdirSync(palettesDir).filter((file) => file.endsWith(".json"));
+      if (files.length === 0) {
+        console.log("No palettes found in palettes/ directory.");
+        return;
+      }
+      console.log(`Available palettes (${files.length}):`);
+      for (const file of files) {
+        try {
+          const filepath = resolve(palettesDir, file);
+          const json = readFileSync(filepath, "utf-8");
+          const palette = paletteFromJson(json);
+          console.log(`  ${file.replace(".json", "")}: "${palette.name}" (${palette.colors.length} colors)`);
+        } catch {
+          console.log(`  ${file}: (invalid palette file)`);
+        }
+      }
+      console.log("\nBuilt-in presets:");
+      const presets = Object.entries(PRESET_PALETTES);
+      for (const [key, palette] of presets) {
+        console.log(`  ${key}: "${palette.name}" (${palette.colors.length} colors)`);
+      }
+    } catch (error) {
+      console.error("Error listing palettes:", error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  });
+}
+function addPaletteCommands(program) {
+  const paletteCmd = program.command("palette").description("Palette management commands");
+  paletteCmd.addCommand(createPaletteCreateCommand());
+  paletteCmd.addCommand(createPalettePresetCommand());
+  paletteCmd.addCommand(createPaletteImportCommand());
+  paletteCmd.addCommand(createPaletteApplyCommand());
+  paletteCmd.addCommand(createPaletteListCommand());
+}
+function validateProjectConfig(config) {
+  if (typeof config !== "object" || config === null) {
+    throw new Error("Invalid pxl.json: must be an object");
+  }
+  const c = config;
+  if (typeof c["name"] !== "string") {
+    throw new Error("Invalid pxl.json: name must be a string");
+  }
+  if (typeof c["version"] !== "string") {
+    throw new Error("Invalid pxl.json: version must be a string");
+  }
+  if (typeof c["palette"] !== "string") {
+    throw new Error("Invalid pxl.json: palette must be a string");
+  }
+  if (typeof c["defaultTemplate"] !== "string") {
+    throw new Error("Invalid pxl.json: defaultTemplate must be a string");
+  }
+  if (typeof c["resolution"] !== "object" || c["resolution"] === null) {
+    throw new Error("Invalid pxl.json: resolution must be an object");
+  }
+  const resolution = c["resolution"];
+  if (typeof resolution["default"] !== "string") {
+    throw new Error("Invalid pxl.json: resolution.default must be a string");
+  }
+  if (typeof resolution["tiers"] !== "object" || resolution["tiers"] === null) {
+    throw new Error("Invalid pxl.json: resolution.tiers must be an object");
+  }
+  const tiers = resolution["tiers"];
+  const requiredTiers = ["micro", "small", "medium", "large"];
+  for (const tier of requiredTiers) {
+    if (!Array.isArray(tiers[tier]) || tiers[tier].length !== 2 || typeof tiers[tier][0] !== "number" || typeof tiers[tier][1] !== "number") {
+      throw new Error(`Invalid pxl.json: resolution.tiers.${tier} must be an array of 2 numbers`);
+    }
+  }
+  if (typeof c["iso"] !== "object" || c["iso"] === null) {
+    throw new Error("Invalid pxl.json: iso must be an object");
+  }
+  const iso = c["iso"];
+  if (typeof iso["enabled"] !== "boolean") {
+    throw new Error("Invalid pxl.json: iso.enabled must be a boolean");
+  }
+  if (!Array.isArray(iso["tileSize"]) || iso["tileSize"].length !== 2 || typeof iso["tileSize"][0] !== "number" || typeof iso["tileSize"][1] !== "number") {
+    throw new Error("Invalid pxl.json: iso.tileSize must be an array of 2 numbers");
+  }
+  if (c["description"] !== void 0 && typeof c["description"] !== "string") {
+    throw new Error("Invalid pxl.json: description must be a string if provided");
+  }
+}
+function readProject(projectDir) {
+  const pxlJsonPath = resolve(projectDir, "pxl.json");
+  if (!existsSync(pxlJsonPath)) {
+    throw new Error(`pxl.json not found in ${projectDir}`);
+  }
+  let json;
+  try {
+    json = readFileSync(pxlJsonPath, "utf-8");
+  } catch (error) {
+    throw new Error(`Failed to read pxl.json: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  let config;
+  try {
+    config = JSON.parse(json);
+  } catch (error) {
+    throw new Error(`Failed to parse pxl.json: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  validateProjectConfig(config);
+  return config;
+}
+function writeProject(projectDir, config) {
+  try {
+    mkdirSync(projectDir, { recursive: true });
+    const pxlJsonPath = resolve(projectDir, "pxl.json");
+    const json = JSON.stringify(config, null, 2);
+    writeFileSync(pxlJsonPath, json, "utf-8");
+  } catch (error) {
+    throw new Error(`Failed to write project config: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+function createDefaultProjectConfig(name, iso = false) {
+  return {
+    name,
+    version: "0.1.0",
+    description: `A pixel art game project`,
+    resolution: {
+      default: "medium",
+      tiers: {
+        micro: [8, 12],
+        small: [16, 24],
+        medium: [32, 48],
+        large: [64, 96]
+      }
+    },
+    palette: "palettes/main.json",
+    defaultTemplate: iso ? "iso-medium" : "chibi-medium",
+    iso: {
+      enabled: iso,
+      tileSize: [32, 16]
+    },
+    export: {
+      sheetPadding: 1,
+      sheetLayout: "grid",
+      metadataFormat: "json",
+      targets: ["tiled", "unity", "godot"]
+    },
+    docs: {
+      "style-guide": "docs/art-style-guide.md",
+      characters: "docs/character-design.md",
+      assets: "docs/asset-list.md"
+    }
+  };
+}
+
+// src/cli/project-commands.ts
+function createInitCommand() {
+  return new Command("init").description("Initialize a new PXL project with pxl.json and directory structure").option("--name <name>", "Project name (defaults to current directory name)").option("--iso", "Enable isometric support").action(async (options) => {
+    try {
+      const currentDir = process.cwd();
+      const projectName = options.name ?? currentDir.split("/").pop() ?? "pxl-project";
+      const isIso = Boolean(options.iso);
+      const pxlJsonPath = resolve(currentDir, "pxl.json");
+      if (existsSync(pxlJsonPath)) {
+        throw new Error("pxl.json already exists. Use a different directory or remove the existing file.");
+      }
+      const config = createDefaultProjectConfig(projectName, isIso);
+      writeProject(currentDir, config);
+      const directories = [
+        "docs",
+        "palettes",
+        "templates",
+        "parts",
+        "chars",
+        "sprites",
+        "tiles",
+        "scenes",
+        "exports"
+      ];
+      console.log(`Initializing PXL project "${projectName}" in ${currentDir}`);
+      for (const dir of directories) {
+        const dirPath = resolve(currentDir, dir);
+        mkdirSync(dirPath, { recursive: true });
+        console.log(`  Created directory: ${dir}/`);
+      }
+      console.log(`  Created pxl.json`);
+      console.log("\nProject initialized successfully!");
+      console.log("\nNext steps:");
+      console.log("  pxl palette preset gameboy    # Create a palette");
+      console.log("  pxl sprite create hero.png --size 32x48    # Create a sprite");
+      console.log("  pxl status                    # Check project overview");
+      if (isIso) {
+        console.log("\nIsometric support is enabled. You can use:");
+        console.log("  pxl iso tile --size 32x16    # Create iso floor tiles");
+        console.log("  pxl iso cube --base 32x16 --height 32    # Create iso cubes");
+      }
+    } catch (error) {
+      console.error("Error initializing project:", error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  });
+}
+function countFiles(dirPath, extensions) {
+  if (!existsSync(dirPath)) {
+    return 0;
+  }
+  try {
+    const files = readdirSync(dirPath);
+    return files.filter((file) => {
+      try {
+        const filePath = resolve(dirPath, file);
+        const stat = statSync(filePath);
+        if (stat.isFile()) {
+          return extensions.some((ext) => file.toLowerCase().endsWith(ext.toLowerCase()));
+        }
+        return false;
+      } catch {
+        return false;
+      }
+    }).length;
+  } catch {
+    return 0;
+  }
+}
+function countCharacters(charsDir) {
+  if (!existsSync(charsDir)) {
+    return 0;
+  }
+  try {
+    const items = readdirSync(charsDir);
+    return items.filter((item) => {
+      try {
+        const itemPath = resolve(charsDir, item);
+        const stat = statSync(itemPath);
+        if (stat.isDirectory()) {
+          const charJsonPath = resolve(itemPath, "char.json");
+          return existsSync(charJsonPath);
+        }
+        return false;
+      } catch {
+        return false;
+      }
+    }).length;
+  } catch {
+    return 0;
+  }
+}
+function createStatusCommand() {
+  return new Command("status").description("Display project overview and asset counts").action(async () => {
+    try {
+      const currentDir = process.cwd();
+      let config;
+      try {
+        config = readProject(currentDir);
+      } catch {
+        throw new Error(`Not a PXL project (no pxl.json found). Use "pxl init" to create one.`);
+      }
+      const paletteCount = countFiles(resolve(currentDir, "palettes"), [".json"]);
+      const spriteCount = countFiles(resolve(currentDir, "sprites"), [".png"]);
+      const tileCount = countFiles(resolve(currentDir, "tiles"), [".png"]);
+      const sceneCount = countFiles(resolve(currentDir, "scenes"), [".json"]);
+      const characterCount = countCharacters(resolve(currentDir, "chars"));
+      const partsDir = resolve(currentDir, "parts");
+      let partCount = 0;
+      const partsBySlot = {};
+      if (existsSync(partsDir)) {
+        try {
+          const slots = readdirSync(partsDir);
+          for (const slot of slots) {
+            const slotPath = resolve(partsDir, slot);
+            const stat = statSync(slotPath);
+            if (stat.isDirectory()) {
+              const slotPartCount = countFiles(slotPath, [".json", ".png"]);
+              partsBySlot[slot] = slotPartCount;
+              partCount += slotPartCount;
+            }
+          }
+        } catch {
+        }
+      }
+      const status = {
+        name: config.name,
+        version: config.version,
+        description: config.description,
+        resolution: config.resolution.default,
+        isometric: config.iso.enabled,
+        counts: {
+          palettes: paletteCount,
+          sprites: spriteCount,
+          characters: characterCount,
+          parts: partCount,
+          tiles: tileCount,
+          scenes: sceneCount
+        },
+        partsBySlot
+      };
+      console.log(JSON.stringify(status, null, 2));
+    } catch (error) {
+      console.error("Error getting project status:", error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  });
+}
+function addProjectCommands(program) {
+  program.addCommand(createInitCommand());
+  program.addCommand(createStatusCommand());
+}
+
 // src/char/color.ts
 function applyColorToPart(part, regionType, color) {
   const coloredPart = {
@@ -1671,7 +2313,6 @@ function drawSpikyHair(canvas, colorRegions) {
   }
 }
 function drawLongHair(canvas, colorRegions) {
-  canvas.width / 2;
   drawRect(
     canvas.buffer,
     canvas.width,
@@ -1703,7 +2344,6 @@ function drawLongHair(canvas, colorRegions) {
   }
 }
 function drawCurlyHair(canvas, colorRegions) {
-  canvas.width / 2;
   for (let curl = 0; curl < 4; curl++) {
     const curlX = Math.floor(2 + curl % 2 * 8 + (curl < 2 ? 4 : 0));
     const curlY = Math.floor(2 + Math.floor(curl / 2) * 6);
@@ -2461,8 +3101,12 @@ function createPartFromStyle(slot, style) {
 }
 function parseColorValue(colorValue, category) {
   const presets = COLOR_PRESETS;
-  if (presets[category] && presets[category][colorValue]) {
-    return presets[category][colorValue];
+  const categoryPresets = presets[category];
+  if (categoryPresets !== void 0) {
+    const preset = categoryPresets[colorValue];
+    if (preset !== void 0) {
+      return preset;
+    }
   }
   if (colorValue.startsWith("#")) {
     return parseHex(colorValue);
@@ -2476,7 +3120,9 @@ function createCharCreateCommand() {
       if (existsSync(charDir)) {
         throw new Error(`Character "${name}" already exists`);
       }
-      const character = createCharacter(name, options.build, options.height);
+      const build = options.build;
+      const height = options.height;
+      const character = createCharacter(name, build, height);
       saveCharacterToDisk(character);
       console.log(`Created character: ${name} (${options.build}/${options.height})`);
     } catch (error) {
@@ -2530,7 +3176,8 @@ function createCharShowCommand() {
       } else {
         for (const slot of equippedSlots) {
           const part = character.equippedParts[slot];
-          console.log(`  ${slot}: ${part?.id || "unknown"}`);
+          const partId = part !== void 0 ? part.id : "unknown";
+          console.log(`  ${slot}: ${partId}`);
         }
       }
       console.log("\nColor Scheme:");
@@ -2551,7 +3198,8 @@ function createCharEquipCommand() {
       validatePartSlot(options.slot);
       const character = loadCharacterFromDisk(name);
       const part = createPartFromStyle(options.slot, options.part);
-      const updatedCharacter = equipPart(character, options.slot, part);
+      const slotKey = options.slot;
+      const updatedCharacter = equipPart(character, slotKey, part);
       saveCharacterToDisk(updatedCharacter);
       console.log(`Equipped ${part.id} to slot ${options.slot} on character ${name}`);
     } catch (error) {
@@ -2565,20 +3213,20 @@ function createCharColorCommand() {
     try {
       const character = loadCharacterFromDisk(name);
       const colorUpdates = {};
-      if (options.skin) {
-        colorUpdates.skin = parseColorValue(options.skin, "skin");
+      if (options.skin !== void 0 && options.skin !== "") {
+        colorUpdates["skin"] = parseColorValue(options.skin, "skin");
       }
-      if (options.hair) {
-        colorUpdates.hair = parseColorValue(options.hair, "hair");
+      if (options.hair !== void 0 && options.hair !== "") {
+        colorUpdates["hair"] = parseColorValue(options.hair, "hair");
       }
-      if (options.eyes) {
-        colorUpdates.eyes = parseColorValue(options.eyes, "eyes");
+      if (options.eyes !== void 0 && options.eyes !== "") {
+        colorUpdates["eyes"] = parseColorValue(options.eyes, "eyes");
       }
-      if (options.outfitPrimary) {
-        colorUpdates.outfitPrimary = parseColorValue(options.outfitPrimary, "outfit");
+      if (options.outfitPrimary !== void 0 && options.outfitPrimary !== "") {
+        colorUpdates["outfitPrimary"] = parseColorValue(options.outfitPrimary, "outfit");
       }
-      if (options.outfitSecondary) {
-        colorUpdates.outfitSecondary = parseColorValue(options.outfitSecondary, "outfit");
+      if (options.outfitSecondary !== void 0 && options.outfitSecondary !== "") {
+        colorUpdates["outfitSecondary"] = parseColorValue(options.outfitSecondary, "outfit");
       }
       if (Object.keys(colorUpdates).length === 0) {
         console.log("No color options provided. Use --skin, --hair, --eyes, --outfit-primary, or --outfit-secondary");
@@ -2599,14 +3247,14 @@ function createCharRenderCommand() {
       const character = loadCharacterFromDisk(name);
       const baseBody = createBaseBody(character.build, character.height);
       const assembled = assembleCharacter(baseBody, character.equippedParts, character.colorScheme);
-      const outputPath = options.output || join(getCharDir(name), "render.png");
+      const outputPath = options.output ?? join(getCharDir(name), "render.png");
       mkdirSync(dirname(outputPath), { recursive: true });
       await writePNG({
         buffer: assembled.buffer,
         width: assembled.width,
         height: assembled.height
       }, outputPath);
-      if (options.output) {
+      if (options.output !== void 0 && options.output !== "") {
         console.log(`Rendered character to ${outputPath}`);
       } else {
         console.log(`Rendered character: ${name}`);
@@ -2620,7 +3268,7 @@ function createCharRenderCommand() {
 function createCharRemoveCommand() {
   return new Command("remove").description("Remove a character").argument("<name>", "Character name").option("--confirm", "Confirm character removal").action(async (name, options) => {
     try {
-      if (!options.confirm) {
+      if (options.confirm !== true) {
         throw new Error("Character removal requires --confirm flag for safety");
       }
       const charDir = getCharDir(name);
@@ -2639,11 +3287,11 @@ function createCharExportCommand() {
   return new Command("export").description("Export character data").argument("<name>", "Character name").option("--output <path>", "Output JSON path (default: chars/<name>/export.json)").option("--include-renders", "Include rendered images in export").action(async (name, options) => {
     try {
       const character = loadCharacterFromDisk(name);
-      const outputPath = options.output || join(getCharDir(name), "export.json");
+      const outputPath = options.output ?? join(getCharDir(name), "export.json");
       mkdirSync(dirname(outputPath), { recursive: true });
       const exportData = saveCharacter(character);
       writeFileSync(outputPath, exportData, "utf-8");
-      if (options.includeRenders) {
+      if (options.includeRenders === true) {
         const baseBody = createBaseBody(character.build, character.height);
         const assembled = assembleCharacter(baseBody, character.equippedParts, character.colorScheme);
         const renderPath = outputPath.replace(".json", ".png");
@@ -2653,12 +3301,10 @@ function createCharExportCommand() {
           height: assembled.height
         }, renderPath);
         console.log(`Exported character with renders to ${dirname(outputPath)}`);
+      } else if (options.output !== void 0 && options.output !== "") {
+        console.log(`Exported character to ${outputPath}`);
       } else {
-        if (options.output) {
-          console.log(`Exported character to ${outputPath}`);
-        } else {
-          console.log(`Exported character: ${name}`);
-        }
+        console.log(`Exported character: ${name}`);
       }
     } catch (error) {
       console.error("Error exporting character:", error instanceof Error ? error.message : String(error));
@@ -2694,6 +3340,8 @@ function createProgram() {
   addSpriteCommands(program);
   addDrawCommands(program);
   addLayerCommands(program);
+  addPaletteCommands(program);
+  addProjectCommands(program);
   addCharCommands(program);
   return program;
 }
