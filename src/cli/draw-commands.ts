@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import { existsSync } from 'fs';
 import { readPNG, writePNG } from '../io/png.js';
 import { parseHex } from '../core/color.js';
-import { setPixel } from '../core/draw.js';
+import { setPixel, drawLine, drawRect, floodFill } from '../core/draw.js';
 
 /**
  * Parse coordinates string in format "x,y" to x and y numbers
@@ -77,6 +77,131 @@ export function createPixelCommand(): Command {
 }
 
 /**
+ * Draw line command: draws a line between two points
+ */
+export function createLineCommand(): Command {
+  return new Command('line')
+    .description('Draw a line between two points')
+    .argument('<path>', 'PNG file path to modify')
+    .argument('<start>', 'Start coordinates in X,Y format (e.g., 1,2)')
+    .argument('<end>', 'End coordinates in X,Y format (e.g., 5,8)')
+    .argument('<color>', 'Line color in hex format (e.g., #FF0000)')
+    .action(async (path: string, start: string, end: string, color: string) => {
+      try {
+        if (!existsSync(path)) {
+          throw new Error(`PNG file not found: ${path}`);
+        }
+        
+        const startCoords = parseCoordinates(start);
+        const endCoords = parseCoordinates(end);
+        const parsedColor = parseHex(color);
+        
+        const image = await readPNG(path);
+        
+        validateBounds(startCoords.x, startCoords.y, image.width, image.height);
+        validateBounds(endCoords.x, endCoords.y, image.width, image.height);
+        
+        drawLine(
+          image.buffer, image.width,
+          startCoords.x, startCoords.y,
+          endCoords.x, endCoords.y,
+          parsedColor.r, parsedColor.g, parsedColor.b, parsedColor.a
+        );
+        
+        await writePNG(image, path);
+        
+        console.log(`Drew line from (${startCoords.x},${startCoords.y}) to (${endCoords.x},${endCoords.y}) with color ${color} in ${path}`);
+      } catch (error) {
+        console.error('Error drawing line:', error instanceof Error ? error.message : String(error));
+        process.exit(1);
+      }
+    });
+}
+
+/**
+ * Draw rectangle command: draws a rectangle (filled or outlined)
+ */
+export function createRectCommand(): Command {
+  return new Command('rect')
+    .description('Draw a rectangle')
+    .argument('<path>', 'PNG file path to modify')
+    .argument('<corner1>', 'First corner coordinates in X,Y format (e.g., 1,2)')
+    .argument('<corner2>', 'Second corner coordinates in X,Y format (e.g., 5,8)')
+    .argument('<color>', 'Rectangle color in hex format (e.g., #FF0000)')
+    .option('-f, --filled', 'Fill the rectangle (default: outlined only)')
+    .action(async (path: string, corner1: string, corner2: string, color: string, options: { filled?: boolean }) => {
+      try {
+        if (!existsSync(path)) {
+          throw new Error(`PNG file not found: ${path}`);
+        }
+        
+        const coords1 = parseCoordinates(corner1);
+        const coords2 = parseCoordinates(corner2);
+        const parsedColor = parseHex(color);
+        
+        const image = await readPNG(path);
+        
+        validateBounds(coords1.x, coords1.y, image.width, image.height);
+        validateBounds(coords2.x, coords2.y, image.width, image.height);
+        
+        drawRect(
+          image.buffer, image.width,
+          coords1.x, coords1.y,
+          coords2.x, coords2.y,
+          parsedColor.r, parsedColor.g, parsedColor.b, parsedColor.a,
+          options.filled || false
+        );
+        
+        await writePNG(image, path);
+        
+        const fillType = options.filled ? 'filled' : 'outlined';
+        console.log(`Drew ${fillType} rectangle from (${coords1.x},${coords1.y}) to (${coords2.x},${coords2.y}) with color ${color} in ${path}`);
+      } catch (error) {
+        console.error('Error drawing rectangle:', error instanceof Error ? error.message : String(error));
+        process.exit(1);
+      }
+    });
+}
+
+/**
+ * Flood fill command: fills a connected region
+ */
+export function createFillCommand(): Command {
+  return new Command('fill')
+    .description('Flood fill a connected region with color')
+    .argument('<path>', 'PNG file path to modify')
+    .argument('<coordinates>', 'Starting coordinates in X,Y format (e.g., 3,4)')
+    .argument('<color>', 'Fill color in hex format (e.g., #FF0000)')
+    .action(async (path: string, coordinates: string, color: string) => {
+      try {
+        if (!existsSync(path)) {
+          throw new Error(`PNG file not found: ${path}`);
+        }
+        
+        const { x, y } = parseCoordinates(coordinates);
+        const parsedColor = parseHex(color);
+        
+        const image = await readPNG(path);
+        
+        validateBounds(x, y, image.width, image.height);
+        
+        floodFill(
+          image.buffer, image.width,
+          x, y,
+          parsedColor.r, parsedColor.g, parsedColor.b, parsedColor.a
+        );
+        
+        await writePNG(image, path);
+        
+        console.log(`Flood filled from (${x},${y}) with color ${color} in ${path}`);
+      } catch (error) {
+        console.error('Error flood filling:', error instanceof Error ? error.message : String(error));
+        process.exit(1);
+      }
+    });
+}
+
+/**
  * Add all draw commands to the parent command
  */
 export function addDrawCommands(program: Command): void {
@@ -85,4 +210,7 @@ export function addDrawCommands(program: Command): void {
     .description('Drawing commands for pixels, lines, shapes, etc.');
   
   drawCmd.addCommand(createPixelCommand());
+  drawCmd.addCommand(createLineCommand());
+  drawCmd.addCommand(createRectCommand());
+  drawCmd.addCommand(createFillCommand());
 }

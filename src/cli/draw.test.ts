@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, rmSync } from 'fs';
 import { execSync } from 'child_process';
 import { readPNG, writePNG } from '../io/png.js';
 import { createCanvas } from '../core/canvas.js';
+import { getPixel, drawRect, drawLine } from '../core/draw.js';
 import { TEST_WORKSPACE } from '../../test/setup.js';
 
 describe('CLI draw commands (#16)', () => {
@@ -206,6 +207,204 @@ describe('CLI draw commands (#16)', () => {
       expect(() => {
         execSync(`node "${pxlPath}" draw pixel "${nonExistentPath}" 0,0 "#FF0000"`, { cwd: testDir, stdio: 'pipe' });
       }).toThrow();
+    });
+  });
+
+  describe('pxl draw line (#21)', () => {
+    it('should draw a line between two points', async () => {
+      const canvas = createCanvas(6, 4);
+      const pngPath = resolve(testDir, 'line-test.png');
+      await writePNG(canvas, pngPath);
+      
+      // Draw line from (1,1) to (4,2)
+      const command = `node "${pxlPath}" draw line "${pngPath}" 1,1 4,2 "#00FF00"`;
+      execSync(command, { cwd: testDir });
+      
+      const result = await readPNG(pngPath);
+      
+      // Check that line pixels are green (using expected Bresenham results)
+      expect(getPixel(result.buffer, result.width, 1, 1)).toEqual({ r: 0, g: 255, b: 0, a: 255 });
+      expect(getPixel(result.buffer, result.width, 2, 1)).toEqual({ r: 0, g: 255, b: 0, a: 255 });
+      expect(getPixel(result.buffer, result.width, 3, 2)).toEqual({ r: 0, g: 255, b: 0, a: 255 });
+      expect(getPixel(result.buffer, result.width, 4, 2)).toEqual({ r: 0, g: 255, b: 0, a: 255 });
+      
+      // Check that other pixels are still transparent
+      expect(getPixel(result.buffer, result.width, 0, 0)).toEqual({ r: 0, g: 0, b: 0, a: 0 });
+    });
+
+    it('should handle vertical and horizontal lines', async () => {
+      const canvas = createCanvas(5, 5);
+      const pngPath = resolve(testDir, 'vh-lines.png');
+      await writePNG(canvas, pngPath);
+      
+      // Draw vertical line
+      execSync(`node "${pxlPath}" draw line "${pngPath}" 2,0 2,4 "#FF0000"`, { cwd: testDir });
+      // Draw horizontal line
+      execSync(`node "${pxlPath}" draw line "${pngPath}" 0,2 4,2 "#0000FF"`, { cwd: testDir });
+      
+      const result = await readPNG(pngPath);
+      
+      // Check vertical line
+      for (let y = 0; y <= 4; y++) {
+        if (y === 2) {
+          // Intersection point - should be blue (last drawn)
+          expect(getPixel(result.buffer, result.width, 2, y)).toEqual({ r: 0, g: 0, b: 255, a: 255 });
+        } else {
+          // Other vertical line pixels should be red
+          expect(getPixel(result.buffer, result.width, 2, y)).toEqual({ r: 255, g: 0, b: 0, a: 255 });
+        }
+      }
+      
+      // Check horizontal line
+      for (let x = 0; x <= 4; x++) {
+        if (x !== 2) {
+          // Non-intersection horizontal pixels should be blue
+          expect(getPixel(result.buffer, result.width, x, 2)).toEqual({ r: 0, g: 0, b: 255, a: 255 });
+        }
+      }
+    });
+  });
+
+  describe('pxl draw rect (#21)', () => {
+    it('should draw outlined rectangles by default', async () => {
+      const canvas = createCanvas(6, 5);
+      const pngPath = resolve(testDir, 'rect-outline.png');
+      await writePNG(canvas, pngPath);
+      
+      // Draw outlined rectangle
+      const command = `node "${pxlPath}" draw rect "${pngPath}" 1,1 4,3 "#FF0000"`;
+      execSync(command, { cwd: testDir });
+      
+      const result = await readPNG(pngPath);
+      
+      // Check corners are red
+      expect(getPixel(result.buffer, result.width, 1, 1)).toEqual({ r: 255, g: 0, b: 0, a: 255 });
+      expect(getPixel(result.buffer, result.width, 4, 1)).toEqual({ r: 255, g: 0, b: 0, a: 255 });
+      expect(getPixel(result.buffer, result.width, 1, 3)).toEqual({ r: 255, g: 0, b: 0, a: 255 });
+      expect(getPixel(result.buffer, result.width, 4, 3)).toEqual({ r: 255, g: 0, b: 0, a: 255 });
+      
+      // Check edges are red
+      expect(getPixel(result.buffer, result.width, 2, 1)).toEqual({ r: 255, g: 0, b: 0, a: 255 }); // top
+      expect(getPixel(result.buffer, result.width, 2, 3)).toEqual({ r: 255, g: 0, b: 0, a: 255 }); // bottom
+      expect(getPixel(result.buffer, result.width, 1, 2)).toEqual({ r: 255, g: 0, b: 0, a: 255 }); // left
+      expect(getPixel(result.buffer, result.width, 4, 2)).toEqual({ r: 255, g: 0, b: 0, a: 255 }); // right
+      
+      // Check interior is transparent
+      expect(getPixel(result.buffer, result.width, 2, 2)).toEqual({ r: 0, g: 0, b: 0, a: 0 });
+    });
+
+    it('should draw filled rectangles with --filled flag', async () => {
+      const canvas = createCanvas(5, 4);
+      const pngPath = resolve(testDir, 'rect-filled.png');
+      await writePNG(canvas, pngPath);
+      
+      // Draw filled rectangle
+      const command = `node "${pxlPath}" draw rect "${pngPath}" 1,1 3,2 "#00FF00" --filled`;
+      execSync(command, { cwd: testDir });
+      
+      const result = await readPNG(pngPath);
+      
+      // Check all interior pixels are green
+      expect(getPixel(result.buffer, result.width, 1, 1)).toEqual({ r: 0, g: 255, b: 0, a: 255 });
+      expect(getPixel(result.buffer, result.width, 2, 1)).toEqual({ r: 0, g: 255, b: 0, a: 255 });
+      expect(getPixel(result.buffer, result.width, 3, 1)).toEqual({ r: 0, g: 255, b: 0, a: 255 });
+      expect(getPixel(result.buffer, result.width, 1, 2)).toEqual({ r: 0, g: 255, b: 0, a: 255 });
+      expect(getPixel(result.buffer, result.width, 2, 2)).toEqual({ r: 0, g: 255, b: 0, a: 255 });
+      expect(getPixel(result.buffer, result.width, 3, 2)).toEqual({ r: 0, g: 255, b: 0, a: 255 });
+      
+      // Check exterior is transparent
+      expect(getPixel(result.buffer, result.width, 0, 0)).toEqual({ r: 0, g: 0, b: 0, a: 0 });
+    });
+
+    it('should handle swapped coordinates', async () => {
+      const canvas = createCanvas(4, 4);
+      const pngPath = resolve(testDir, 'rect-swapped.png');
+      await writePNG(canvas, pngPath);
+      
+      // Draw with swapped coordinates (bottom-right to top-left)
+      const command = `node "${pxlPath}" draw rect "${pngPath}" 3,3 1,1 "#0000FF" --filled`;
+      execSync(command, { cwd: testDir });
+      
+      const result = await readPNG(pngPath);
+      
+      // Should still draw correct rectangle
+      expect(getPixel(result.buffer, result.width, 1, 1)).toEqual({ r: 0, g: 0, b: 255, a: 255 });
+      expect(getPixel(result.buffer, result.width, 2, 2)).toEqual({ r: 0, g: 0, b: 255, a: 255 });
+      expect(getPixel(result.buffer, result.width, 3, 3)).toEqual({ r: 0, g: 0, b: 255, a: 255 });
+    });
+  });
+
+  describe('pxl draw fill (#21)', () => {
+    it('should flood fill a bounded region', async () => {
+      const canvas = createCanvas(5, 5);
+      
+      // Create a boundary
+      drawRect(canvas.buffer, canvas.width, 1, 1, 3, 3, 255, 0, 0, 255, false);
+      
+      const pngPath = resolve(testDir, 'fill-bounded.png');
+      await writePNG(canvas, pngPath);
+      
+      // Flood fill the interior
+      const command = `node "${pxlPath}" draw fill "${pngPath}" 2,2 "#00FF00"`;
+      execSync(command, { cwd: testDir });
+      
+      const result = await readPNG(pngPath);
+      
+      // Check interior is filled
+      expect(getPixel(result.buffer, result.width, 2, 2)).toEqual({ r: 0, g: 255, b: 0, a: 255 });
+      
+      // Check boundary remains red
+      expect(getPixel(result.buffer, result.width, 1, 1)).toEqual({ r: 255, g: 0, b: 0, a: 255 });
+      expect(getPixel(result.buffer, result.width, 3, 3)).toEqual({ r: 255, g: 0, b: 0, a: 255 });
+      
+      // Check exterior is transparent
+      expect(getPixel(result.buffer, result.width, 0, 0)).toEqual({ r: 0, g: 0, b: 0, a: 0 });
+    });
+
+    it('should fill entire canvas when no boundaries', async () => {
+      const canvas = createCanvas(3, 3);
+      const pngPath = resolve(testDir, 'fill-all.png');
+      await writePNG(canvas, pngPath);
+      
+      // Flood fill from center
+      const command = `node "${pxlPath}" draw fill "${pngPath}" 1,1 "#FFFF00"`;
+      execSync(command, { cwd: testDir });
+      
+      const result = await readPNG(pngPath);
+      
+      // Check all pixels are yellow
+      for (let y = 0; y < 3; y++) {
+        for (let x = 0; x < 3; x++) {
+          expect(getPixel(result.buffer, result.width, x, y)).toEqual({ r: 255, g: 255, b: 0, a: 255 });
+        }
+      }
+    });
+
+    it('should respect boundaries and not cross them', async () => {
+      const canvas = createCanvas(7, 3);
+      
+      // Create vertical barrier
+      drawLine(canvas.buffer, canvas.width, 3, 0, 3, 2, 255, 0, 0, 255);
+      
+      const pngPath = resolve(testDir, 'fill-barrier.png');
+      await writePNG(canvas, pngPath);
+      
+      // Flood fill left side only
+      const command = `node "${pxlPath}" draw fill "${pngPath}" 1,1 "#0000FF"`;
+      execSync(command, { cwd: testDir });
+      
+      const result = await readPNG(pngPath);
+      
+      // Check left side is blue
+      expect(getPixel(result.buffer, result.width, 0, 0)).toEqual({ r: 0, g: 0, b: 255, a: 255 });
+      expect(getPixel(result.buffer, result.width, 1, 1)).toEqual({ r: 0, g: 0, b: 255, a: 255 });
+      
+      // Check barrier remains red
+      expect(getPixel(result.buffer, result.width, 3, 1)).toEqual({ r: 255, g: 0, b: 0, a: 255 });
+      
+      // Check right side is still transparent
+      expect(getPixel(result.buffer, result.width, 4, 1)).toEqual({ r: 0, g: 0, b: 0, a: 0 });
+      expect(getPixel(result.buffer, result.width, 6, 1)).toEqual({ r: 0, g: 0, b: 0, a: 0 });
     });
   });
 });
