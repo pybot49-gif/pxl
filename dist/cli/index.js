@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { readFileSync, mkdirSync, existsSync } from 'fs';
+import { readFileSync, mkdirSync, existsSync, unlinkSync, writeFileSync, readdirSync, statSync, promises } from 'fs';
 import { resolve, dirname } from 'path';
 import sharp from 'sharp';
 
@@ -15,6 +15,115 @@ function createCanvas(width, height) {
     height
   };
 }
+async function readMeta(path) {
+  try {
+    const content = await promises.readFile(path, "utf-8");
+    const data = JSON.parse(content);
+    if (typeof data.width !== "number" || typeof data.height !== "number" || !Array.isArray(data.layers)) {
+      throw new Error("Invalid meta file format: missing width, height, or layers");
+    }
+    for (const layer of data.layers) {
+      if (typeof layer.name !== "string" || typeof layer.opacity !== "number" || typeof layer.visible !== "boolean" || typeof layer.blend !== "string") {
+        throw new Error("Invalid meta file format: invalid layer structure");
+      }
+      const validBlendModes = ["normal", "multiply", "overlay", "screen", "add"];
+      if (!validBlendModes.includes(layer.blend)) {
+        throw new Error(`Invalid blend mode: ${layer.blend}`);
+      }
+      if (layer.opacity < 0 || layer.opacity > 255) {
+        throw new Error(`Invalid opacity: ${layer.opacity} (must be 0-255)`);
+      }
+    }
+    return data;
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("Invalid meta file format")) {
+      throw error;
+    }
+    throw new Error(
+      `Failed to read meta file ${path}: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+}
+async function writeMeta(path, meta) {
+  try {
+    const content = JSON.stringify(meta, null, 2);
+    await promises.writeFile(path, content, "utf-8");
+  } catch (error) {
+    throw new Error(
+      `Failed to write meta file ${path}: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+}
+
+// src/core/blend.ts
+function applyBlendMode(base, blend, mode) {
+  switch (mode) {
+    case "normal":
+      return blend;
+    case "multiply":
+      return Math.round(base * blend / 255);
+    case "screen":
+      return Math.round(255 - (255 - base) * (255 - blend) / 255);
+    case "overlay":
+      if (base < 128) {
+        return Math.round(2 * base * blend / 255);
+      }
+      return Math.round(255 - 2 * (255 - base) * (255 - blend) / 255);
+    case "add":
+      return Math.min(base + blend, 255);
+    default:
+      return blend;
+  }
+}
+
+// src/core/composite.ts
+function alphaBlend(dst, src, opacity, blendMode = "normal") {
+  if (dst.length < 4 || src.length < 4) {
+    throw new Error("Invalid pixel buffers: must be at least 4 bytes (RGBA)");
+  }
+  const opacityFactor = opacity / 255;
+  const srcAlpha = (src[3] ?? 0) * opacityFactor / 255;
+  if (srcAlpha === 0) {
+    return;
+  }
+  const dstAlpha = (dst[3] ?? 0) / 255;
+  const outAlpha = srcAlpha + dstAlpha * (1 - srcAlpha);
+  if (outAlpha === 0) {
+    dst[0] = dst[1] = dst[2] = dst[3] = 0;
+    return;
+  }
+  for (let i = 0; i < 3; i++) {
+    const srcColor = src[i] ?? 0;
+    const dstColor = dst[i] ?? 0;
+    const blendedColor = applyBlendMode(dstColor, srcColor, blendMode);
+    const srcContribution = blendedColor * srcAlpha;
+    const dstContribution = dstColor * dstAlpha * (1 - srcAlpha);
+    dst[i] = Math.round((srcContribution + dstContribution) / outAlpha);
+  }
+  dst[3] = Math.round(outAlpha * 255);
+}
+function flattenLayers(canvas) {
+  const { width, height, layers } = canvas;
+  const bufferLength = width * height * 4;
+  const result = new Uint8Array(bufferLength);
+  for (const layer of layers) {
+    if (!layer.visible) {
+      continue;
+    }
+    for (let i = 0; i < bufferLength; i += 4) {
+      const dstPixel = result.subarray(i, i + 4);
+      const srcPixel = layer.buffer.subarray(i, i + 4);
+      alphaBlend(dstPixel, srcPixel, layer.opacity, layer.blend);
+    }
+  }
+  return {
+    buffer: result,
+    width,
+    height
+  };
+}
+
+// src/io/png.ts
 async function readPNG(path) {
   try {
     const image = sharp(path);
@@ -65,6 +174,81 @@ async function writePNG(imageData, path) {
   } catch (error) {
     throw new Error(
       `Failed to write PNG ${path}: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+}
+async function readLayeredSprite(basePath) {
+  try {
+    const metaPath = `${basePath}.meta.json`;
+    const meta = await readMeta(metaPath);
+    const canvas = {
+      width: meta.width,
+      height: meta.height,
+      layers: []
+    };
+    for (let i = 0; i < meta.layers.length; i++) {
+      const layerPath = `${basePath}.layer-${i}.png`;
+      const layerImage = await readPNG(layerPath);
+      if (layerImage.width !== meta.width || layerImage.height !== meta.height) {
+        throw new Error(
+          `Layer ${i} dimensions (${layerImage.width}x${layerImage.height}) do not match meta dimensions (${meta.width}x${meta.height})`
+        );
+      }
+      const layerMeta = meta.layers[i];
+      if (!layerMeta) {
+        throw new Error(`Missing layer metadata for layer ${i}`);
+      }
+      const layer = {
+        name: layerMeta.name,
+        buffer: layerImage.buffer,
+        opacity: layerMeta.opacity,
+        visible: layerMeta.visible,
+        blend: layerMeta.blend
+      };
+      canvas.layers.push(layer);
+    }
+    return canvas;
+  } catch (error) {
+    throw new Error(
+      `Failed to read layered sprite ${basePath}: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+}
+async function writeLayeredSprite(basePath, canvas) {
+  try {
+    const dir = dirname(basePath);
+    await promises.mkdir(dir, { recursive: true });
+    const metaPath = `${basePath}.meta.json`;
+    const meta = {
+      width: canvas.width,
+      height: canvas.height,
+      layers: canvas.layers.map((layer) => ({
+        name: layer.name,
+        opacity: layer.opacity,
+        visible: layer.visible,
+        blend: layer.blend
+      }))
+    };
+    await writeMeta(metaPath, meta);
+    for (let i = 0; i < canvas.layers.length; i++) {
+      const layer = canvas.layers[i];
+      if (!layer) {
+        throw new Error(`Missing layer ${i} in canvas`);
+      }
+      const layerPath = `${basePath}.layer-${i}.png`;
+      const layerImageData = {
+        buffer: layer.buffer,
+        width: canvas.width,
+        height: canvas.height
+      };
+      await writePNG(layerImageData, layerPath);
+    }
+    const flattened = flattenLayers(canvas);
+    const flattenedPath = `${basePath}.png`;
+    await writePNG(flattened, flattenedPath);
+  } catch (error) {
+    throw new Error(
+      `Failed to write layered sprite ${basePath}: ${error instanceof Error ? error.message : String(error)}`
     );
   }
 }
@@ -438,19 +622,55 @@ function validateBounds(x, y, width, height) {
     throw new Error(`Coordinates (${x},${y}) are out of bounds for ${width}x${height} image`);
   }
 }
-function createPixelCommand() {
-  return new Command("pixel").description("Draw a single pixel at specified coordinates").argument("<path>", "PNG file path to modify").argument("<coordinates>", "Pixel coordinates in X,Y format (e.g., 3,4)").argument("<color>", "Pixel color in hex format (e.g., #FF0000, #f00, #FF000080)").action(async (path, coordinates, color) => {
-    try {
-      if (!existsSync(path)) {
-        throw new Error(`PNG file not found: ${path}`);
+async function getDrawTarget(path, layerName) {
+  const basePath = path.endsWith(".png") ? path.slice(0, -4) : path;
+  const pngPath = `${basePath}.png`;
+  const metaPath = `${basePath}.meta.json`;
+  if (existsSync(metaPath)) {
+    const canvas = await readLayeredSprite(basePath);
+    let targetLayerIndex = 0;
+    if (layerName !== void 0 && layerName.length > 0) {
+      targetLayerIndex = canvas.layers.findIndex((layer) => layer.name === layerName);
+      if (targetLayerIndex === -1) {
+        throw new Error(`Layer "${layerName}" not found. Available layers: ${canvas.layers.map((l) => l.name).join(", ")}`);
       }
+    }
+    const targetLayer = canvas.layers[targetLayerIndex];
+    if (!targetLayer) {
+      throw new Error(`Layer ${targetLayerIndex} not found`);
+    }
+    return {
+      buffer: targetLayer.buffer,
+      width: canvas.width,
+      height: canvas.height,
+      save: () => writeLayeredSprite(basePath, canvas)
+    };
+  }
+  if (existsSync(pngPath)) {
+    if (layerName !== void 0 && layerName.length > 0) {
+      console.warn(`Warning: --layer "${layerName}" ignored for regular PNG file`);
+    }
+    const image = await readPNG(pngPath);
+    return {
+      buffer: image.buffer,
+      width: image.width,
+      height: image.height,
+      save: () => writePNG(image, pngPath)
+    };
+  }
+  throw new Error(`Sprite or PNG file not found: ${pngPath}`);
+}
+function createPixelCommand() {
+  return new Command("pixel").description("Draw a single pixel at specified coordinates").argument("<path>", "Sprite path or PNG file path to modify").argument("<coordinates>", "Pixel coordinates in X,Y format (e.g., 3,4)").argument("<color>", "Pixel color in hex format (e.g., #FF0000, #f00, #FF000080)").option("--layer <name>", "Layer name to draw on (for layered sprites)").action(async (path, coordinates, color, options) => {
+    try {
       const { x, y } = parseCoordinates(coordinates);
       const parsedColor = parseHex(color);
-      const image = await readPNG(path);
-      validateBounds(x, y, image.width, image.height);
-      setPixel(image.buffer, image.width, x, y, parsedColor.r, parsedColor.g, parsedColor.b, parsedColor.a);
-      await writePNG(image, path);
-      console.log(`Set pixel at (${x},${y}) to ${color} in ${path}`);
+      const target = await getDrawTarget(path, options.layer);
+      validateBounds(x, y, target.width, target.height);
+      setPixel(target.buffer, target.width, x, y, parsedColor.r, parsedColor.g, parsedColor.b, parsedColor.a);
+      await target.save();
+      const layerInfo = options.layer !== void 0 && options.layer.length > 0 ? ` on layer "${options.layer}"` : "";
+      console.log(`Set pixel at (${x},${y}) to ${color}${layerInfo} in ${path}`);
     } catch (error) {
       console.error("Error drawing pixel:", error instanceof Error ? error.message : String(error));
       process.exit(1);
@@ -458,20 +678,17 @@ function createPixelCommand() {
   });
 }
 function createLineCommand() {
-  return new Command("line").description("Draw a line between two points").argument("<path>", "PNG file path to modify").argument("<start>", "Start coordinates in X,Y format (e.g., 1,2)").argument("<end>", "End coordinates in X,Y format (e.g., 5,8)").argument("<color>", "Line color in hex format (e.g., #FF0000)").action(async (path, start, end, color) => {
+  return new Command("line").description("Draw a line between two points").argument("<path>", "Sprite path or PNG file path to modify").argument("<start>", "Start coordinates in X,Y format (e.g., 1,2)").argument("<end>", "End coordinates in X,Y format (e.g., 5,8)").argument("<color>", "Line color in hex format (e.g., #FF0000)").option("--layer <name>", "Layer name to draw on (for layered sprites)").action(async (path, start, end, color, options) => {
     try {
-      if (!existsSync(path)) {
-        throw new Error(`PNG file not found: ${path}`);
-      }
       const startCoords = parseCoordinates(start);
       const endCoords = parseCoordinates(end);
       const parsedColor = parseHex(color);
-      const image = await readPNG(path);
-      validateBounds(startCoords.x, startCoords.y, image.width, image.height);
-      validateBounds(endCoords.x, endCoords.y, image.width, image.height);
+      const target = await getDrawTarget(path, options.layer);
+      validateBounds(startCoords.x, startCoords.y, target.width, target.height);
+      validateBounds(endCoords.x, endCoords.y, target.width, target.height);
       drawLine(
-        image.buffer,
-        image.width,
+        target.buffer,
+        target.width,
         startCoords.x,
         startCoords.y,
         endCoords.x,
@@ -481,8 +698,9 @@ function createLineCommand() {
         parsedColor.b,
         parsedColor.a
       );
-      await writePNG(image, path);
-      console.log(`Drew line from (${startCoords.x},${startCoords.y}) to (${endCoords.x},${endCoords.y}) with color ${color} in ${path}`);
+      await target.save();
+      const layerInfo = options.layer !== void 0 && options.layer.length > 0 ? ` on layer "${options.layer}"` : "";
+      console.log(`Drew line from (${startCoords.x},${startCoords.y}) to (${endCoords.x},${endCoords.y}) with color ${color}${layerInfo} in ${path}`);
     } catch (error) {
       console.error("Error drawing line:", error instanceof Error ? error.message : String(error));
       process.exit(1);
@@ -660,6 +878,933 @@ function addDrawCommands(program) {
   drawCmd.addCommand(createEraseCommand());
   drawCmd.addCommand(createOutlineCommand());
 }
+function createLayerAddCommand() {
+  return new Command("add").description("Add a new layer to an existing layered sprite").argument("<path>", "Sprite path (without extension)").requiredOption("--name <name>", "Name for the new layer").option("--opacity <opacity>", "Layer opacity (0-255)", "255").option("--visible <visible>", "Layer visibility (true|false)", "true").option("--blend <blend>", "Blend mode (normal|multiply|overlay|screen|add)", "normal").action(async (path, options) => {
+    try {
+      if (!existsSync(`${path}.meta.json`)) {
+        console.error(`Error: Sprite not found: ${path}`);
+        console.error("Make sure the sprite exists and is a layered sprite (has .meta.json file)");
+        process.exit(1);
+      }
+      const opacity = parseInt(options.opacity, 10);
+      if (isNaN(opacity) || opacity < 0 || opacity > 255) {
+        console.error(`Error: Invalid opacity "${options.opacity}". Must be a number between 0 and 255.`);
+        process.exit(1);
+      }
+      const visible = options.visible.toLowerCase() === "true";
+      if (options.visible.toLowerCase() !== "true" && options.visible.toLowerCase() !== "false") {
+        console.error(`Error: Invalid visibility "${options.visible}". Must be "true" or "false".`);
+        process.exit(1);
+      }
+      const validBlendModes = ["normal", "multiply", "overlay", "screen", "add"];
+      if (!validBlendModes.includes(options.blend)) {
+        console.error(`Error: Invalid blend mode "${options.blend}". Must be one of: ${validBlendModes.join(", ")}`);
+        process.exit(1);
+      }
+      const canvas = await readLayeredSprite(path);
+      const bufferLength = canvas.width * canvas.height * 4;
+      const newLayerBuffer = new Uint8Array(bufferLength);
+      canvas.layers.push({
+        name: options.name,
+        buffer: newLayerBuffer,
+        opacity,
+        visible,
+        blend: options.blend
+      });
+      await writeLayeredSprite(path, canvas);
+      console.log(`Added layer "${options.name}" to ${path}`);
+      console.log(`  Opacity: ${opacity}`);
+      console.log(`  Visible: ${visible}`);
+      console.log(`  Blend: ${options.blend}`);
+      console.log(`  Total layers: ${canvas.layers.length}`);
+    } catch (error) {
+      console.error("Error adding layer:", error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  });
+}
+function createLayerListCommand() {
+  return new Command("list").description("List all layers in a sprite as JSON").argument("<path>", "Sprite path (without extension)").action(async (path) => {
+    try {
+      const canvas = await readLayeredSprite(path);
+      const layerInfo = canvas.layers.map((layer) => ({
+        name: layer.name,
+        opacity: layer.opacity,
+        visible: layer.visible,
+        blend: layer.blend
+      }));
+      console.log(JSON.stringify(layerInfo, null, 2));
+    } catch (error) {
+      console.error("Error listing layers:", error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  });
+}
+function createLayerRemoveCommand() {
+  return new Command("remove").description("Remove a layer from a sprite").argument("<path>", "Sprite path (without extension)").argument("<name>", "Name of the layer to remove").action(async (path, name) => {
+    try {
+      const canvas = await readLayeredSprite(path);
+      const layerIndex = canvas.layers.findIndex((layer) => layer.name === name);
+      if (layerIndex === -1) {
+        console.error(`Error: Layer "${name}" not found in sprite ${path}`);
+        console.error(`Available layers: ${canvas.layers.map((l) => l.name).join(", ")}`);
+        process.exit(1);
+      }
+      const originalLayerCount = canvas.layers.length;
+      canvas.layers.splice(layerIndex, 1);
+      if (canvas.layers.length === 0) {
+        console.error("Error: Cannot remove the last layer. A sprite must have at least one layer.");
+        process.exit(1);
+      }
+      for (let i = canvas.layers.length; i < originalLayerCount; i++) {
+        const oldLayerPath = `${path}.layer-${i}.png`;
+        try {
+          if (existsSync(oldLayerPath)) {
+            unlinkSync(oldLayerPath);
+          }
+        } catch {
+        }
+      }
+      await writeLayeredSprite(path, canvas);
+      console.log(`Removed layer "${name}" from ${path}`);
+      console.log(`Remaining layers: ${canvas.layers.length}`);
+    } catch (error) {
+      console.error("Error removing layer:", error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  });
+}
+function createLayerReorderCommand() {
+  return new Command("reorder").description("Reorder a layer to a specific position").argument("<path>", "Sprite path (without extension)").argument("<name>", "Name of the layer to move").requiredOption("--to <index>", "Target index (0-based)").action(async (path, name, options) => {
+    try {
+      const canvas = await readLayeredSprite(path);
+      const currentIndex = canvas.layers.findIndex((layer2) => layer2.name === name);
+      if (currentIndex === -1) {
+        console.error(`Error: Layer "${name}" not found`);
+        process.exit(1);
+      }
+      const targetIndex = parseInt(options.to, 10);
+      if (isNaN(targetIndex) || targetIndex < 0 || targetIndex >= canvas.layers.length) {
+        console.error(`Error: Invalid index ${options.to}. Must be between 0 and ${canvas.layers.length - 1}`);
+        process.exit(1);
+      }
+      if (currentIndex === targetIndex) {
+        console.log(`Layer "${name}" is already at index ${targetIndex}`);
+        return;
+      }
+      const removedLayers = canvas.layers.splice(currentIndex, 1);
+      if (removedLayers.length === 0) {
+        throw new Error("Failed to remove layer at specified index");
+      }
+      const layer = removedLayers[0];
+      if (layer === void 0) {
+        throw new Error("Failed to remove layer at specified index");
+      }
+      canvas.layers.splice(targetIndex, 0, layer);
+      await writeLayeredSprite(path, canvas);
+      console.log(`Moved layer "${name}" from index ${currentIndex} to ${targetIndex}`);
+    } catch (error) {
+      console.error("Error reordering layer:", error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  });
+}
+function createLayerOpacityCommand() {
+  return new Command("opacity").description("Set layer opacity").argument("<path>", "Sprite path (without extension)").argument("<name>", "Name of the layer").argument("<opacity>", "Opacity value (0-255)").action(async (path, name, opacityStr) => {
+    try {
+      const opacity = parseInt(opacityStr, 10);
+      if (isNaN(opacity) || opacity < 0 || opacity > 255) {
+        console.error(`Error: Opacity must be between 0 and 255, got "${opacityStr}"`);
+        process.exit(1);
+      }
+      const canvas = await readLayeredSprite(path);
+      const layerIndex = canvas.layers.findIndex((l) => l.name === name);
+      if (layerIndex === -1) {
+        console.error(`Error: Layer "${name}" not found`);
+        process.exit(1);
+      }
+      const targetLayer = canvas.layers[layerIndex];
+      if (targetLayer === void 0) {
+        throw new Error("Layer not found at index");
+      }
+      targetLayer.opacity = opacity;
+      await writeLayeredSprite(path, canvas);
+      console.log(`Set opacity of layer "${name}" to ${opacity}`);
+    } catch (error) {
+      console.error("Error setting layer opacity:", error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  });
+}
+function createLayerVisibleCommand() {
+  return new Command("visible").description("Set layer visibility").argument("<path>", "Sprite path (without extension)").argument("<name>", "Name of the layer").argument("<visible>", "Visibility (true|false)").action(async (path, name, visibleStr) => {
+    try {
+      const visible = visibleStr.toLowerCase() === "true";
+      if (visibleStr.toLowerCase() !== "true" && visibleStr.toLowerCase() !== "false") {
+        console.error(`Error: Visibility must be "true" or "false", got "${visibleStr}"`);
+        process.exit(1);
+      }
+      const canvas = await readLayeredSprite(path);
+      const layerIndex = canvas.layers.findIndex((l) => l.name === name);
+      if (layerIndex === -1) {
+        console.error(`Error: Layer "${name}" not found`);
+        process.exit(1);
+      }
+      const targetLayer = canvas.layers[layerIndex];
+      if (targetLayer === void 0) {
+        throw new Error("Layer not found at index");
+      }
+      targetLayer.visible = visible;
+      await writeLayeredSprite(path, canvas);
+      console.log(`Set visibility of layer "${name}" to ${visible}`);
+    } catch (error) {
+      console.error("Error setting layer visibility:", error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  });
+}
+function createLayerMergeCommand() {
+  return new Command("merge").description("Merge two layers into one").argument("<path>", "Sprite path (without extension)").argument("<layer1>", "Name of the first layer (will be kept)").argument("<layer2>", "Name of the second layer (will be removed after merge)").action(async (path, layer1Name, layer2Name) => {
+    try {
+      if (layer1Name === layer2Name) {
+        console.error("Error: Cannot merge a layer with itself");
+        process.exit(1);
+      }
+      const canvas = await readLayeredSprite(path);
+      const layer1Index = canvas.layers.findIndex((l) => l.name === layer1Name);
+      const layer2Index = canvas.layers.findIndex((l) => l.name === layer2Name);
+      if (layer1Index === -1) {
+        console.error(`Error: Layer "${layer1Name}" not found`);
+        console.error(`Available layers: ${canvas.layers.map((l) => l.name).join(", ")}`);
+        process.exit(1);
+      }
+      if (layer2Index === -1) {
+        console.error(`Error: Layer "${layer2Name}" not found`);
+        console.error(`Available layers: ${canvas.layers.map((l) => l.name).join(", ")}`);
+        process.exit(1);
+      }
+      const layer1 = canvas.layers[layer1Index];
+      const layer2 = canvas.layers[layer2Index];
+      if (layer1 === void 0 || layer2 === void 0) {
+        throw new Error("Layer not found at index");
+      }
+      const bottomLayer = layer1Index < layer2Index ? layer1 : layer2;
+      const topLayer = layer1Index < layer2Index ? layer2 : layer1;
+      const mergedBuffer = new Uint8Array(bottomLayer.buffer);
+      for (let i = 0; i < mergedBuffer.length; i += 4) {
+        const dstPixel = mergedBuffer.subarray(i, i + 4);
+        const srcPixel = topLayer.buffer.subarray(i, i + 4);
+        alphaBlend(dstPixel, srcPixel, topLayer.opacity, topLayer.blend);
+      }
+      layer1.buffer = mergedBuffer;
+      layer1.name = `${layer1Name} + ${layer2Name}`;
+      layer1.opacity = Math.min(layer1.opacity, layer2.opacity);
+      layer1.visible = layer1.visible && layer2.visible;
+      canvas.layers.splice(layer2Index, 1);
+      const oldLayerPath = `${path}.layer-${canvas.layers.length}.png`;
+      try {
+        if (existsSync(oldLayerPath)) {
+          unlinkSync(oldLayerPath);
+        }
+      } catch {
+      }
+      await writeLayeredSprite(path, canvas);
+      console.log(`Merged layers "${layer1Name}" and "${layer2Name}" into "${layer1.name}"`);
+      console.log(`Total layers: ${canvas.layers.length}`);
+    } catch (error) {
+      console.error("Error merging layers:", error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  });
+}
+function createLayerFlattenCommand() {
+  return new Command("flatten").description("Flatten all layers into a single layer").argument("<path>", "Sprite path (without extension)").action(async (path) => {
+    try {
+      const canvas = await readLayeredSprite(path);
+      const flattened = flattenLayers(canvas);
+      canvas.layers = [{
+        name: "Flattened",
+        buffer: flattened.buffer,
+        opacity: 255,
+        visible: true,
+        blend: "normal"
+      }];
+      let i = 1;
+      while (true) {
+        const oldLayerPath = `${path}.layer-${i}.png`;
+        if (existsSync(oldLayerPath)) {
+          try {
+            unlinkSync(oldLayerPath);
+            i++;
+          } catch {
+            break;
+          }
+        } else {
+          break;
+        }
+      }
+      await writeLayeredSprite(path, canvas);
+      console.log("Flattened all layers into a single layer");
+      console.log(`Final result: 1 layer named "Flattened"`);
+    } catch (error) {
+      console.error("Error flattening layers:", error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  });
+}
+function addLayerCommands(program) {
+  const layerCmd = program.command("layer").description("Layer management commands");
+  layerCmd.addCommand(createLayerAddCommand());
+  layerCmd.addCommand(createLayerListCommand());
+  layerCmd.addCommand(createLayerRemoveCommand());
+  layerCmd.addCommand(createLayerReorderCommand());
+  layerCmd.addCommand(createLayerOpacityCommand());
+  layerCmd.addCommand(createLayerVisibleCommand());
+  layerCmd.addCommand(createLayerMergeCommand());
+  layerCmd.addCommand(createLayerFlattenCommand());
+}
+
+// src/core/palette.ts
+function createPalette(name, colors) {
+  return { name, colors };
+}
+function paletteToJson(palette) {
+  const serialized = {
+    name: palette.name,
+    colors: palette.colors.map((color) => [color.r, color.g, color.b, color.a])
+  };
+  return JSON.stringify(serialized);
+}
+function paletteFromJson(json) {
+  const parsed = JSON.parse(json);
+  if (typeof parsed.name !== "string") {
+    throw new Error("Invalid palette JSON: name must be a string");
+  }
+  if (!Array.isArray(parsed.colors)) {
+    throw new Error("Invalid palette JSON: colors must be an array");
+  }
+  const colors = parsed.colors.map((colorArray) => {
+    if (!Array.isArray(colorArray) || colorArray.length !== 4) {
+      throw new Error("Invalid palette JSON: each color must be an array of 4 numbers [r,g,b,a]");
+    }
+    const [r, g, b, a] = colorArray;
+    if (typeof r !== "number" || typeof g !== "number" || typeof b !== "number" || typeof a !== "number") {
+      throw new Error("Invalid palette JSON: color components must be numbers");
+    }
+    return { r, g, b, a };
+  });
+  return { name: parsed.name, colors };
+}
+function extractPalette(buffer, width, height) {
+  const uniqueColors = /* @__PURE__ */ new Map();
+  for (let i = 0; i < buffer.length; i += 4) {
+    const r = buffer[i] ?? 0;
+    const g = buffer[i + 1] ?? 0;
+    const b = buffer[i + 2] ?? 0;
+    const a = buffer[i + 3] ?? 0;
+    const key = `${r},${g},${b},${a}`;
+    if (!uniqueColors.has(key)) {
+      uniqueColors.set(key, { r, g, b, a });
+    }
+  }
+  return Array.from(uniqueColors.values());
+}
+function colorDistance(color1, color2) {
+  const deltaR = color1.r - color2.r;
+  const deltaG = color1.g - color2.g;
+  const deltaB = color1.b - color2.b;
+  return Math.sqrt(deltaR * deltaR + deltaG * deltaG + deltaB * deltaB);
+}
+function findNearestColor(color, palette) {
+  if (palette.length === 0) {
+    return color;
+  }
+  const firstColor = palette[0];
+  if (firstColor === void 0) {
+    return color;
+  }
+  let nearestColor = firstColor;
+  let minDistance = colorDistance(color, nearestColor);
+  for (let i = 1; i < palette.length; i++) {
+    const paletteColor = palette[i];
+    if (paletteColor !== void 0) {
+      const distance = colorDistance(color, paletteColor);
+      if (distance < minDistance) {
+        minDistance = distance;
+        nearestColor = paletteColor;
+      }
+    }
+  }
+  return nearestColor;
+}
+function remapToPalette(buffer, width, height, palette) {
+  if (palette.length === 0) {
+    return new Uint8Array(buffer);
+  }
+  const outputBuffer = new Uint8Array(buffer.length);
+  for (let i = 0; i < buffer.length; i += 4) {
+    const originalColor = {
+      r: buffer[i] ?? 0,
+      g: buffer[i + 1] ?? 0,
+      b: buffer[i + 2] ?? 0,
+      a: buffer[i + 3] ?? 0
+    };
+    const nearestColor = findNearestColor(originalColor, palette);
+    outputBuffer[i] = nearestColor.r;
+    outputBuffer[i + 1] = nearestColor.g;
+    outputBuffer[i + 2] = nearestColor.b;
+    outputBuffer[i + 3] = originalColor.a;
+  }
+  return outputBuffer;
+}
+var PRESET_PALETTES = {
+  gameboy: createPalette("GameBoy", [
+    { r: 15, g: 56, b: 15, a: 255 },
+    // Dark green
+    { r: 48, g: 98, b: 48, a: 255 },
+    // Medium green
+    { r: 139, g: 172, b: 15, a: 255 },
+    // Light green
+    { r: 155, g: 188, b: 15, a: 255 }
+    // Lightest green
+  ]),
+  pico8: createPalette("PICO-8", [
+    { r: 0, g: 0, b: 0, a: 255 },
+    // Black
+    { r: 29, g: 43, b: 83, a: 255 },
+    // Dark blue
+    { r: 126, g: 37, b: 83, a: 255 },
+    // Dark purple
+    { r: 0, g: 135, b: 81, a: 255 },
+    // Dark green
+    { r: 171, g: 82, b: 54, a: 255 },
+    // Brown
+    { r: 95, g: 87, b: 79, a: 255 },
+    // Dark gray
+    { r: 194, g: 195, b: 199, a: 255 },
+    // Light gray
+    { r: 255, g: 241, b: 232, a: 255 },
+    // White
+    { r: 255, g: 0, b: 77, a: 255 },
+    // Red
+    { r: 255, g: 163, b: 0, a: 255 },
+    // Orange
+    { r: 255, g: 236, b: 39, a: 255 },
+    // Yellow
+    { r: 0, g: 228, b: 54, a: 255 },
+    // Green
+    { r: 41, g: 173, b: 255, a: 255 },
+    // Blue
+    { r: 131, g: 118, b: 156, a: 255 },
+    // Indigo
+    { r: 255, g: 119, b: 168, a: 255 },
+    // Pink
+    { r: 255, g: 204, b: 170, a: 255 }
+    // Peach
+  ]),
+  nes: createPalette("NES", [
+    { r: 84, g: 84, b: 84, a: 255 },
+    { r: 0, g: 30, b: 116, a: 255 },
+    { r: 8, g: 16, b: 144, a: 255 },
+    { r: 48, g: 0, b: 136, a: 255 },
+    { r: 68, g: 0, b: 100, a: 255 },
+    { r: 92, g: 0, b: 48, a: 255 },
+    { r: 84, g: 4, b: 0, a: 255 },
+    { r: 60, g: 24, b: 0, a: 255 },
+    { r: 32, g: 42, b: 0, a: 255 },
+    { r: 8, g: 58, b: 0, a: 255 },
+    { r: 0, g: 64, b: 0, a: 255 },
+    { r: 0, g: 60, b: 0, a: 255 },
+    { r: 0, g: 50, b: 60, a: 255 },
+    { r: 0, g: 0, b: 0, a: 255 },
+    { r: 152, g: 150, b: 152, a: 255 },
+    { r: 8, g: 76, b: 196, a: 255 },
+    { r: 48, g: 50, b: 236, a: 255 },
+    { r: 92, g: 30, b: 228, a: 255 },
+    { r: 136, g: 20, b: 176, a: 255 },
+    { r: 160, g: 20, b: 100, a: 255 },
+    { r: 152, g: 34, b: 32, a: 255 },
+    { r: 120, g: 60, b: 0, a: 255 },
+    { r: 84, g: 90, b: 0, a: 255 },
+    { r: 40, g: 114, b: 0, a: 255 },
+    { r: 8, g: 124, b: 0, a: 255 },
+    { r: 0, g: 118, b: 40, a: 255 },
+    { r: 0, g: 102, b: 120, a: 255 },
+    { r: 236, g: 238, b: 236, a: 255 },
+    { r: 76, g: 154, b: 236, a: 255 },
+    { r: 120, g: 124, b: 236, a: 255 },
+    { r: 176, g: 98, b: 236, a: 255 },
+    { r: 228, g: 84, b: 236, a: 255 },
+    { r: 236, g: 88, b: 180, a: 255 },
+    { r: 236, g: 106, b: 100, a: 255 },
+    { r: 212, g: 136, b: 32, a: 255 },
+    { r: 160, g: 170, b: 0, a: 255 },
+    { r: 116, g: 196, b: 0, a: 255 },
+    { r: 76, g: 208, b: 32, a: 255 },
+    { r: 56, g: 204, b: 108, a: 255 },
+    { r: 56, g: 180, b: 204, a: 255 },
+    { r: 60, g: 60, b: 60, a: 255 },
+    { r: 168, g: 204, b: 236, a: 255 },
+    { r: 188, g: 188, b: 236, a: 255 },
+    { r: 212, g: 178, b: 236, a: 255 },
+    { r: 236, g: 174, b: 236, a: 255 },
+    { r: 236, g: 174, b: 212, a: 255 },
+    { r: 236, g: 180, b: 176, a: 255 },
+    { r: 228, g: 196, b: 144, a: 255 },
+    { r: 204, g: 210, b: 120, a: 255 },
+    { r: 180, g: 222, b: 120, a: 255 },
+    { r: 168, g: 226, b: 144, a: 255 },
+    { r: 152, g: 226, b: 180, a: 255 },
+    { r: 160, g: 214, b: 228, a: 255 },
+    { r: 160, g: 162, b: 160, a: 255 }
+  ]),
+  endesga32: createPalette("Endesga-32", [
+    { r: 190, g: 38, b: 51, a: 255 },
+    { r: 224, g: 111, b: 139, a: 255 },
+    { r: 73, g: 60, b: 43, a: 255 },
+    { r: 164, g: 100, b: 34, a: 255 },
+    { r: 235, g: 137, b: 49, a: 255 },
+    { r: 247, g: 226, b: 107, a: 255 },
+    { r: 47, g: 72, b: 78, a: 255 },
+    { r: 68, g: 137, b: 115, a: 255 },
+    { r: 163, g: 206, b: 39, a: 255 },
+    { r: 27, g: 38, b: 50, a: 255 },
+    { r: 0, g: 87, b: 132, a: 255 },
+    { r: 49, g: 162, b: 242, a: 255 },
+    { r: 178, g: 220, b: 239, a: 255 },
+    { r: 68, g: 36, b: 52, a: 255 },
+    { r: 133, g: 76, b: 48, a: 255 },
+    { r: 254, g: 174, b: 52, a: 255 },
+    { r: 254, g: 231, b: 97, a: 255 },
+    { r: 99, g: 199, b: 77, a: 255 },
+    { r: 62, g: 137, b: 72, a: 255 },
+    { r: 38, g: 92, b: 66, a: 255 },
+    { r: 25, g: 60, b: 62, a: 255 },
+    { r: 18, g: 78, b: 137, a: 255 },
+    { r: 0, g: 149, b: 233, a: 255 },
+    { r: 44, g: 232, b: 245, a: 255 },
+    { r: 255, g: 255, b: 255, a: 255 },
+    { r: 192, g: 203, b: 220, a: 255 },
+    { r: 139, g: 155, b: 180, a: 255 },
+    { r: 90, g: 105, b: 136, a: 255 },
+    { r: 58, g: 68, b: 102, a: 255 },
+    { r: 38, g: 43, b: 68, a: 255 },
+    { r: 24, g: 20, b: 37, a: 255 },
+    { r: 255, g: 0, b: 68, a: 255 }
+  ])
+};
+
+// src/cli/palette-commands.ts
+function createPaletteCreateCommand() {
+  return new Command("create").description("Create a new palette from hex colors").argument("<name>", "Palette name").requiredOption("--colors <colors>", 'Comma-separated hex colors (e.g., "#FF0000,#00FF00,#0000FF")').action(async (name, options) => {
+    try {
+      const hexColors = options.colors.split(",").map((hex) => hex.trim());
+      const colors = hexColors.map((hex) => {
+        try {
+          return parseHex(hex);
+        } catch (error) {
+          throw new Error(`Invalid hex color "${hex}": ${error instanceof Error ? error.message : String(error)}`);
+        }
+      });
+      const palette = createPalette(name, colors);
+      const palettesDir = resolve(process.cwd(), "palettes");
+      mkdirSync(palettesDir, { recursive: true });
+      const filename = `${name.toLowerCase().replace(/[^a-z0-9-]/g, "-")}.json`;
+      const filepath = resolve(palettesDir, filename);
+      const json = paletteToJson(palette);
+      writeFileSync(filepath, json, "utf-8");
+      console.log(`Created palette "${name}" with ${colors.length} colors: ${filepath}`);
+    } catch (error) {
+      console.error("Error creating palette:", error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  });
+}
+function createPalettePresetCommand() {
+  return new Command("preset").description("Create a palette from a built-in preset").argument("<name>", "Preset name (gameboy, pico8, nes, endesga32)").action(async (presetName) => {
+    try {
+      const presets = PRESET_PALETTES;
+      const palette = presets[presetName.toLowerCase()];
+      if (palette === void 0) {
+        const availablePresets = Object.keys(presets).join(", ");
+        throw new Error(`Unknown preset "${presetName}". Available presets: ${availablePresets}`);
+      }
+      const palettesDir = resolve(process.cwd(), "palettes");
+      mkdirSync(palettesDir, { recursive: true });
+      const filename = `${presetName.toLowerCase()}.json`;
+      const filepath = resolve(palettesDir, filename);
+      const json = paletteToJson(palette);
+      writeFileSync(filepath, json, "utf-8");
+      console.log(`Created ${palette.name} preset palette with ${palette.colors.length} colors: ${filepath}`);
+    } catch (error) {
+      console.error("Error creating preset palette:", error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  });
+}
+function createPaletteImportCommand() {
+  return new Command("import").description("Extract a palette from an image").argument("<name>", "Palette name").requiredOption("--from <image>", "Source image file path").action(async (name, options) => {
+    try {
+      if (!existsSync(options.from)) {
+        throw new Error(`Source image not found: ${options.from}`);
+      }
+      const image = await readPNG(options.from);
+      const colors = extractPalette(image.buffer, image.width, image.height);
+      if (colors.length === 0) {
+        throw new Error("No colors found in source image");
+      }
+      const palette = createPalette(name, colors);
+      const palettesDir = resolve(process.cwd(), "palettes");
+      mkdirSync(palettesDir, { recursive: true });
+      const filename = `${name.toLowerCase().replace(/[^a-z0-9-]/g, "-")}.json`;
+      const filepath = resolve(palettesDir, filename);
+      const json = paletteToJson(palette);
+      writeFileSync(filepath, json, "utf-8");
+      console.log(`Extracted palette "${name}" with ${colors.length} unique colors from ${options.from}: ${filepath}`);
+    } catch (error) {
+      console.error("Error importing palette:", error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  });
+}
+function loadPalette(paletteName) {
+  const palettesDir = resolve(process.cwd(), "palettes");
+  const filename = paletteName.endsWith(".json") ? paletteName : `${paletteName}.json`;
+  const filepath = resolve(palettesDir, filename);
+  if (!existsSync(filepath)) {
+    throw new Error(`Palette not found: ${filepath}. Use "pxl palette list" to see available palettes.`);
+  }
+  const json = readFileSync(filepath, "utf-8");
+  return paletteFromJson(json);
+}
+function createPaletteApplyCommand() {
+  return new Command("apply").description("Remap sprite colors to a palette").argument("<path>", "Sprite PNG file path").requiredOption("--palette <name>", "Palette name (without .json extension)").action(async (path, options) => {
+    try {
+      if (!existsSync(path)) {
+        throw new Error(`Sprite not found: ${path}`);
+      }
+      const palette = loadPalette(options.palette);
+      const image = await readPNG(path);
+      const remappedBuffer = remapToPalette(image.buffer, image.width, image.height, palette.colors);
+      await writePNG({
+        buffer: remappedBuffer,
+        width: image.width,
+        height: image.height
+      }, path);
+      console.log(`Applied palette "${palette.name}" to ${path}`);
+    } catch (error) {
+      console.error("Error applying palette:", error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  });
+}
+function createPaletteListCommand() {
+  return new Command("list").description("List available palettes in the project").action(async () => {
+    try {
+      const palettesDir = resolve(process.cwd(), "palettes");
+      if (!existsSync(palettesDir)) {
+        console.log('No palettes directory found. Use "pxl palette create" or "pxl palette preset" to create palettes.');
+        return;
+      }
+      const files = readdirSync(palettesDir).filter((file) => file.endsWith(".json"));
+      if (files.length === 0) {
+        console.log("No palettes found in palettes/ directory.");
+        return;
+      }
+      console.log(`Available palettes (${files.length}):`);
+      for (const file of files) {
+        try {
+          const filepath = resolve(palettesDir, file);
+          const json = readFileSync(filepath, "utf-8");
+          const palette = paletteFromJson(json);
+          console.log(`  ${file.replace(".json", "")}: "${palette.name}" (${palette.colors.length} colors)`);
+        } catch {
+          console.log(`  ${file}: (invalid palette file)`);
+        }
+      }
+      console.log("\nBuilt-in presets:");
+      const presets = Object.entries(PRESET_PALETTES);
+      for (const [key, palette] of presets) {
+        console.log(`  ${key}: "${palette.name}" (${palette.colors.length} colors)`);
+      }
+    } catch (error) {
+      console.error("Error listing palettes:", error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  });
+}
+function addPaletteCommands(program) {
+  const paletteCmd = program.command("palette").description("Palette management commands");
+  paletteCmd.addCommand(createPaletteCreateCommand());
+  paletteCmd.addCommand(createPalettePresetCommand());
+  paletteCmd.addCommand(createPaletteImportCommand());
+  paletteCmd.addCommand(createPaletteApplyCommand());
+  paletteCmd.addCommand(createPaletteListCommand());
+}
+function validateProjectConfig(config) {
+  if (typeof config !== "object" || config === null) {
+    throw new Error("Invalid pxl.json: must be an object");
+  }
+  const c = config;
+  if (typeof c["name"] !== "string") {
+    throw new Error("Invalid pxl.json: name must be a string");
+  }
+  if (typeof c["version"] !== "string") {
+    throw new Error("Invalid pxl.json: version must be a string");
+  }
+  if (typeof c["palette"] !== "string") {
+    throw new Error("Invalid pxl.json: palette must be a string");
+  }
+  if (typeof c["defaultTemplate"] !== "string") {
+    throw new Error("Invalid pxl.json: defaultTemplate must be a string");
+  }
+  if (typeof c["resolution"] !== "object" || c["resolution"] === null) {
+    throw new Error("Invalid pxl.json: resolution must be an object");
+  }
+  const resolution = c["resolution"];
+  if (typeof resolution["default"] !== "string") {
+    throw new Error("Invalid pxl.json: resolution.default must be a string");
+  }
+  if (typeof resolution["tiers"] !== "object" || resolution["tiers"] === null) {
+    throw new Error("Invalid pxl.json: resolution.tiers must be an object");
+  }
+  const tiers = resolution["tiers"];
+  const requiredTiers = ["micro", "small", "medium", "large"];
+  for (const tier of requiredTiers) {
+    if (!Array.isArray(tiers[tier]) || tiers[tier].length !== 2 || typeof tiers[tier][0] !== "number" || typeof tiers[tier][1] !== "number") {
+      throw new Error(`Invalid pxl.json: resolution.tiers.${tier} must be an array of 2 numbers`);
+    }
+  }
+  if (typeof c["iso"] !== "object" || c["iso"] === null) {
+    throw new Error("Invalid pxl.json: iso must be an object");
+  }
+  const iso = c["iso"];
+  if (typeof iso["enabled"] !== "boolean") {
+    throw new Error("Invalid pxl.json: iso.enabled must be a boolean");
+  }
+  if (!Array.isArray(iso["tileSize"]) || iso["tileSize"].length !== 2 || typeof iso["tileSize"][0] !== "number" || typeof iso["tileSize"][1] !== "number") {
+    throw new Error("Invalid pxl.json: iso.tileSize must be an array of 2 numbers");
+  }
+  if (c["description"] !== void 0 && typeof c["description"] !== "string") {
+    throw new Error("Invalid pxl.json: description must be a string if provided");
+  }
+}
+function readProject(projectDir) {
+  const pxlJsonPath = resolve(projectDir, "pxl.json");
+  if (!existsSync(pxlJsonPath)) {
+    throw new Error(`pxl.json not found in ${projectDir}`);
+  }
+  let json;
+  try {
+    json = readFileSync(pxlJsonPath, "utf-8");
+  } catch (error) {
+    throw new Error(`Failed to read pxl.json: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  let config;
+  try {
+    config = JSON.parse(json);
+  } catch (error) {
+    throw new Error(`Failed to parse pxl.json: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  validateProjectConfig(config);
+  return config;
+}
+function writeProject(projectDir, config) {
+  try {
+    mkdirSync(projectDir, { recursive: true });
+    const pxlJsonPath = resolve(projectDir, "pxl.json");
+    const json = JSON.stringify(config, null, 2);
+    writeFileSync(pxlJsonPath, json, "utf-8");
+  } catch (error) {
+    throw new Error(`Failed to write project config: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+function createDefaultProjectConfig(name, iso = false) {
+  return {
+    name,
+    version: "0.1.0",
+    description: `A pixel art game project`,
+    resolution: {
+      default: "medium",
+      tiers: {
+        micro: [8, 12],
+        small: [16, 24],
+        medium: [32, 48],
+        large: [64, 96]
+      }
+    },
+    palette: "palettes/main.json",
+    defaultTemplate: iso ? "iso-medium" : "chibi-medium",
+    iso: {
+      enabled: iso,
+      tileSize: [32, 16]
+    },
+    export: {
+      sheetPadding: 1,
+      sheetLayout: "grid",
+      metadataFormat: "json",
+      targets: ["tiled", "unity", "godot"]
+    },
+    docs: {
+      "style-guide": "docs/art-style-guide.md",
+      characters: "docs/character-design.md",
+      assets: "docs/asset-list.md"
+    }
+  };
+}
+
+// src/cli/project-commands.ts
+function createInitCommand() {
+  return new Command("init").description("Initialize a new PXL project with pxl.json and directory structure").option("--name <name>", "Project name (defaults to current directory name)").option("--iso", "Enable isometric support").action(async (options) => {
+    try {
+      const currentDir = process.cwd();
+      const projectName = options.name ?? currentDir.split("/").pop() ?? "pxl-project";
+      const isIso = Boolean(options.iso);
+      const pxlJsonPath = resolve(currentDir, "pxl.json");
+      if (existsSync(pxlJsonPath)) {
+        throw new Error("pxl.json already exists. Use a different directory or remove the existing file.");
+      }
+      const config = createDefaultProjectConfig(projectName, isIso);
+      writeProject(currentDir, config);
+      const directories = [
+        "docs",
+        "palettes",
+        "templates",
+        "parts",
+        "chars",
+        "sprites",
+        "tiles",
+        "scenes",
+        "exports"
+      ];
+      console.log(`Initializing PXL project "${projectName}" in ${currentDir}`);
+      for (const dir of directories) {
+        const dirPath = resolve(currentDir, dir);
+        mkdirSync(dirPath, { recursive: true });
+        console.log(`  Created directory: ${dir}/`);
+      }
+      console.log(`  Created pxl.json`);
+      console.log("\nProject initialized successfully!");
+      console.log("\nNext steps:");
+      console.log("  pxl palette preset gameboy    # Create a palette");
+      console.log("  pxl sprite create hero.png --size 32x48    # Create a sprite");
+      console.log("  pxl status                    # Check project overview");
+      if (isIso) {
+        console.log("\nIsometric support is enabled. You can use:");
+        console.log("  pxl iso tile --size 32x16    # Create iso floor tiles");
+        console.log("  pxl iso cube --base 32x16 --height 32    # Create iso cubes");
+      }
+    } catch (error) {
+      console.error("Error initializing project:", error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  });
+}
+function countFiles(dirPath, extensions) {
+  if (!existsSync(dirPath)) {
+    return 0;
+  }
+  try {
+    const files = readdirSync(dirPath);
+    return files.filter((file) => {
+      try {
+        const filePath = resolve(dirPath, file);
+        const stat = statSync(filePath);
+        if (stat.isFile()) {
+          return extensions.some((ext) => file.toLowerCase().endsWith(ext.toLowerCase()));
+        }
+        return false;
+      } catch {
+        return false;
+      }
+    }).length;
+  } catch {
+    return 0;
+  }
+}
+function countCharacters(charsDir) {
+  if (!existsSync(charsDir)) {
+    return 0;
+  }
+  try {
+    const items = readdirSync(charsDir);
+    return items.filter((item) => {
+      try {
+        const itemPath = resolve(charsDir, item);
+        const stat = statSync(itemPath);
+        if (stat.isDirectory()) {
+          const charJsonPath = resolve(itemPath, "char.json");
+          return existsSync(charJsonPath);
+        }
+        return false;
+      } catch {
+        return false;
+      }
+    }).length;
+  } catch {
+    return 0;
+  }
+}
+function createStatusCommand() {
+  return new Command("status").description("Display project overview and asset counts").action(async () => {
+    try {
+      const currentDir = process.cwd();
+      let config;
+      try {
+        config = readProject(currentDir);
+      } catch {
+        throw new Error(`Not a PXL project (no pxl.json found). Use "pxl init" to create one.`);
+      }
+      const paletteCount = countFiles(resolve(currentDir, "palettes"), [".json"]);
+      const spriteCount = countFiles(resolve(currentDir, "sprites"), [".png"]);
+      const tileCount = countFiles(resolve(currentDir, "tiles"), [".png"]);
+      const sceneCount = countFiles(resolve(currentDir, "scenes"), [".json"]);
+      const characterCount = countCharacters(resolve(currentDir, "chars"));
+      const partsDir = resolve(currentDir, "parts");
+      let partCount = 0;
+      const partsBySlot = {};
+      if (existsSync(partsDir)) {
+        try {
+          const slots = readdirSync(partsDir);
+          for (const slot of slots) {
+            const slotPath = resolve(partsDir, slot);
+            const stat = statSync(slotPath);
+            if (stat.isDirectory()) {
+              const slotPartCount = countFiles(slotPath, [".json", ".png"]);
+              partsBySlot[slot] = slotPartCount;
+              partCount += slotPartCount;
+            }
+          }
+        } catch {
+        }
+      }
+      const status = {
+        name: config.name,
+        version: config.version,
+        description: config.description,
+        resolution: config.resolution.default,
+        isometric: config.iso.enabled,
+        counts: {
+          palettes: paletteCount,
+          sprites: spriteCount,
+          characters: characterCount,
+          parts: partCount,
+          tiles: tileCount,
+          scenes: sceneCount
+        },
+        partsBySlot
+      };
+      console.log(JSON.stringify(status, null, 2));
+    } catch (error) {
+      console.error("Error getting project status:", error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  });
+}
+function addProjectCommands(program) {
+  program.addCommand(createInitCommand());
+  program.addCommand(createStatusCommand());
+}
 
 // src/cli/index.ts
 function getVersion() {
@@ -676,6 +1821,9 @@ function createProgram() {
   program.name("pxl").description("Terminal-first pixel art editor and sprite animation tool").version(getVersion(), "-v, --version", "display version number").helpOption("-h, --help", "display help for command");
   addSpriteCommands(program);
   addDrawCommands(program);
+  addLayerCommands(program);
+  addPaletteCommands(program);
+  addProjectCommands(program);
   return program;
 }
 function main() {

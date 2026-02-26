@@ -1,8 +1,118 @@
 import { Command } from 'commander';
-import { existsSync } from 'fs';
+import { existsSync, promises } from 'fs';
 import sharp from 'sharp';
+import { dirname } from 'path';
 
 // src/cli/draw-commands.ts
+async function readMeta(path) {
+  try {
+    const content = await promises.readFile(path, "utf-8");
+    const data = JSON.parse(content);
+    if (typeof data.width !== "number" || typeof data.height !== "number" || !Array.isArray(data.layers)) {
+      throw new Error("Invalid meta file format: missing width, height, or layers");
+    }
+    for (const layer of data.layers) {
+      if (typeof layer.name !== "string" || typeof layer.opacity !== "number" || typeof layer.visible !== "boolean" || typeof layer.blend !== "string") {
+        throw new Error("Invalid meta file format: invalid layer structure");
+      }
+      const validBlendModes = ["normal", "multiply", "overlay", "screen", "add"];
+      if (!validBlendModes.includes(layer.blend)) {
+        throw new Error(`Invalid blend mode: ${layer.blend}`);
+      }
+      if (layer.opacity < 0 || layer.opacity > 255) {
+        throw new Error(`Invalid opacity: ${layer.opacity} (must be 0-255)`);
+      }
+    }
+    return data;
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("Invalid meta file format")) {
+      throw error;
+    }
+    throw new Error(
+      `Failed to read meta file ${path}: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+}
+async function writeMeta(path, meta) {
+  try {
+    const content = JSON.stringify(meta, null, 2);
+    await promises.writeFile(path, content, "utf-8");
+  } catch (error) {
+    throw new Error(
+      `Failed to write meta file ${path}: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+}
+
+// src/core/blend.ts
+function applyBlendMode(base, blend, mode) {
+  switch (mode) {
+    case "normal":
+      return blend;
+    case "multiply":
+      return Math.round(base * blend / 255);
+    case "screen":
+      return Math.round(255 - (255 - base) * (255 - blend) / 255);
+    case "overlay":
+      if (base < 128) {
+        return Math.round(2 * base * blend / 255);
+      }
+      return Math.round(255 - 2 * (255 - base) * (255 - blend) / 255);
+    case "add":
+      return Math.min(base + blend, 255);
+    default:
+      return blend;
+  }
+}
+
+// src/core/composite.ts
+function alphaBlend(dst, src, opacity, blendMode = "normal") {
+  if (dst.length < 4 || src.length < 4) {
+    throw new Error("Invalid pixel buffers: must be at least 4 bytes (RGBA)");
+  }
+  const opacityFactor = opacity / 255;
+  const srcAlpha = (src[3] ?? 0) * opacityFactor / 255;
+  if (srcAlpha === 0) {
+    return;
+  }
+  const dstAlpha = (dst[3] ?? 0) / 255;
+  const outAlpha = srcAlpha + dstAlpha * (1 - srcAlpha);
+  if (outAlpha === 0) {
+    dst[0] = dst[1] = dst[2] = dst[3] = 0;
+    return;
+  }
+  for (let i = 0; i < 3; i++) {
+    const srcColor = src[i] ?? 0;
+    const dstColor = dst[i] ?? 0;
+    const blendedColor = applyBlendMode(dstColor, srcColor, blendMode);
+    const srcContribution = blendedColor * srcAlpha;
+    const dstContribution = dstColor * dstAlpha * (1 - srcAlpha);
+    dst[i] = Math.round((srcContribution + dstContribution) / outAlpha);
+  }
+  dst[3] = Math.round(outAlpha * 255);
+}
+function flattenLayers(canvas) {
+  const { width, height, layers } = canvas;
+  const bufferLength = width * height * 4;
+  const result = new Uint8Array(bufferLength);
+  for (const layer of layers) {
+    if (!layer.visible) {
+      continue;
+    }
+    for (let i = 0; i < bufferLength; i += 4) {
+      const dstPixel = result.subarray(i, i + 4);
+      const srcPixel = layer.buffer.subarray(i, i + 4);
+      alphaBlend(dstPixel, srcPixel, layer.opacity, layer.blend);
+    }
+  }
+  return {
+    buffer: result,
+    width,
+    height
+  };
+}
+
+// src/io/png.ts
 async function readPNG(path) {
   try {
     const image = sharp(path);
@@ -53,6 +163,81 @@ async function writePNG(imageData, path) {
   } catch (error) {
     throw new Error(
       `Failed to write PNG ${path}: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+}
+async function readLayeredSprite(basePath) {
+  try {
+    const metaPath = `${basePath}.meta.json`;
+    const meta = await readMeta(metaPath);
+    const canvas = {
+      width: meta.width,
+      height: meta.height,
+      layers: []
+    };
+    for (let i = 0; i < meta.layers.length; i++) {
+      const layerPath = `${basePath}.layer-${i}.png`;
+      const layerImage = await readPNG(layerPath);
+      if (layerImage.width !== meta.width || layerImage.height !== meta.height) {
+        throw new Error(
+          `Layer ${i} dimensions (${layerImage.width}x${layerImage.height}) do not match meta dimensions (${meta.width}x${meta.height})`
+        );
+      }
+      const layerMeta = meta.layers[i];
+      if (!layerMeta) {
+        throw new Error(`Missing layer metadata for layer ${i}`);
+      }
+      const layer = {
+        name: layerMeta.name,
+        buffer: layerImage.buffer,
+        opacity: layerMeta.opacity,
+        visible: layerMeta.visible,
+        blend: layerMeta.blend
+      };
+      canvas.layers.push(layer);
+    }
+    return canvas;
+  } catch (error) {
+    throw new Error(
+      `Failed to read layered sprite ${basePath}: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+}
+async function writeLayeredSprite(basePath, canvas) {
+  try {
+    const dir = dirname(basePath);
+    await promises.mkdir(dir, { recursive: true });
+    const metaPath = `${basePath}.meta.json`;
+    const meta = {
+      width: canvas.width,
+      height: canvas.height,
+      layers: canvas.layers.map((layer) => ({
+        name: layer.name,
+        opacity: layer.opacity,
+        visible: layer.visible,
+        blend: layer.blend
+      }))
+    };
+    await writeMeta(metaPath, meta);
+    for (let i = 0; i < canvas.layers.length; i++) {
+      const layer = canvas.layers[i];
+      if (!layer) {
+        throw new Error(`Missing layer ${i} in canvas`);
+      }
+      const layerPath = `${basePath}.layer-${i}.png`;
+      const layerImageData = {
+        buffer: layer.buffer,
+        width: canvas.width,
+        height: canvas.height
+      };
+      await writePNG(layerImageData, layerPath);
+    }
+    const flattened = flattenLayers(canvas);
+    const flattenedPath = `${basePath}.png`;
+    await writePNG(flattened, flattenedPath);
+  } catch (error) {
+    throw new Error(
+      `Failed to write layered sprite ${basePath}: ${error instanceof Error ? error.message : String(error)}`
     );
   }
 }
@@ -365,19 +550,55 @@ function validateBounds(x, y, width, height) {
     throw new Error(`Coordinates (${x},${y}) are out of bounds for ${width}x${height} image`);
   }
 }
-function createPixelCommand() {
-  return new Command("pixel").description("Draw a single pixel at specified coordinates").argument("<path>", "PNG file path to modify").argument("<coordinates>", "Pixel coordinates in X,Y format (e.g., 3,4)").argument("<color>", "Pixel color in hex format (e.g., #FF0000, #f00, #FF000080)").action(async (path, coordinates, color) => {
-    try {
-      if (!existsSync(path)) {
-        throw new Error(`PNG file not found: ${path}`);
+async function getDrawTarget(path, layerName) {
+  const basePath = path.endsWith(".png") ? path.slice(0, -4) : path;
+  const pngPath = `${basePath}.png`;
+  const metaPath = `${basePath}.meta.json`;
+  if (existsSync(metaPath)) {
+    const canvas = await readLayeredSprite(basePath);
+    let targetLayerIndex = 0;
+    if (layerName !== void 0 && layerName.length > 0) {
+      targetLayerIndex = canvas.layers.findIndex((layer) => layer.name === layerName);
+      if (targetLayerIndex === -1) {
+        throw new Error(`Layer "${layerName}" not found. Available layers: ${canvas.layers.map((l) => l.name).join(", ")}`);
       }
+    }
+    const targetLayer = canvas.layers[targetLayerIndex];
+    if (!targetLayer) {
+      throw new Error(`Layer ${targetLayerIndex} not found`);
+    }
+    return {
+      buffer: targetLayer.buffer,
+      width: canvas.width,
+      height: canvas.height,
+      save: () => writeLayeredSprite(basePath, canvas)
+    };
+  }
+  if (existsSync(pngPath)) {
+    if (layerName !== void 0 && layerName.length > 0) {
+      console.warn(`Warning: --layer "${layerName}" ignored for regular PNG file`);
+    }
+    const image = await readPNG(pngPath);
+    return {
+      buffer: image.buffer,
+      width: image.width,
+      height: image.height,
+      save: () => writePNG(image, pngPath)
+    };
+  }
+  throw new Error(`Sprite or PNG file not found: ${pngPath}`);
+}
+function createPixelCommand() {
+  return new Command("pixel").description("Draw a single pixel at specified coordinates").argument("<path>", "Sprite path or PNG file path to modify").argument("<coordinates>", "Pixel coordinates in X,Y format (e.g., 3,4)").argument("<color>", "Pixel color in hex format (e.g., #FF0000, #f00, #FF000080)").option("--layer <name>", "Layer name to draw on (for layered sprites)").action(async (path, coordinates, color, options) => {
+    try {
       const { x, y } = parseCoordinates(coordinates);
       const parsedColor = parseHex(color);
-      const image = await readPNG(path);
-      validateBounds(x, y, image.width, image.height);
-      setPixel(image.buffer, image.width, x, y, parsedColor.r, parsedColor.g, parsedColor.b, parsedColor.a);
-      await writePNG(image, path);
-      console.log(`Set pixel at (${x},${y}) to ${color} in ${path}`);
+      const target = await getDrawTarget(path, options.layer);
+      validateBounds(x, y, target.width, target.height);
+      setPixel(target.buffer, target.width, x, y, parsedColor.r, parsedColor.g, parsedColor.b, parsedColor.a);
+      await target.save();
+      const layerInfo = options.layer !== void 0 && options.layer.length > 0 ? ` on layer "${options.layer}"` : "";
+      console.log(`Set pixel at (${x},${y}) to ${color}${layerInfo} in ${path}`);
     } catch (error) {
       console.error("Error drawing pixel:", error instanceof Error ? error.message : String(error));
       process.exit(1);
@@ -385,20 +606,17 @@ function createPixelCommand() {
   });
 }
 function createLineCommand() {
-  return new Command("line").description("Draw a line between two points").argument("<path>", "PNG file path to modify").argument("<start>", "Start coordinates in X,Y format (e.g., 1,2)").argument("<end>", "End coordinates in X,Y format (e.g., 5,8)").argument("<color>", "Line color in hex format (e.g., #FF0000)").action(async (path, start, end, color) => {
+  return new Command("line").description("Draw a line between two points").argument("<path>", "Sprite path or PNG file path to modify").argument("<start>", "Start coordinates in X,Y format (e.g., 1,2)").argument("<end>", "End coordinates in X,Y format (e.g., 5,8)").argument("<color>", "Line color in hex format (e.g., #FF0000)").option("--layer <name>", "Layer name to draw on (for layered sprites)").action(async (path, start, end, color, options) => {
     try {
-      if (!existsSync(path)) {
-        throw new Error(`PNG file not found: ${path}`);
-      }
       const startCoords = parseCoordinates(start);
       const endCoords = parseCoordinates(end);
       const parsedColor = parseHex(color);
-      const image = await readPNG(path);
-      validateBounds(startCoords.x, startCoords.y, image.width, image.height);
-      validateBounds(endCoords.x, endCoords.y, image.width, image.height);
+      const target = await getDrawTarget(path, options.layer);
+      validateBounds(startCoords.x, startCoords.y, target.width, target.height);
+      validateBounds(endCoords.x, endCoords.y, target.width, target.height);
       drawLine(
-        image.buffer,
-        image.width,
+        target.buffer,
+        target.width,
         startCoords.x,
         startCoords.y,
         endCoords.x,
@@ -408,8 +626,9 @@ function createLineCommand() {
         parsedColor.b,
         parsedColor.a
       );
-      await writePNG(image, path);
-      console.log(`Drew line from (${startCoords.x},${startCoords.y}) to (${endCoords.x},${endCoords.y}) with color ${color} in ${path}`);
+      await target.save();
+      const layerInfo = options.layer !== void 0 && options.layer.length > 0 ? ` on layer "${options.layer}"` : "";
+      console.log(`Drew line from (${startCoords.x},${startCoords.y}) to (${endCoords.x},${endCoords.y}) with color ${color}${layerInfo} in ${path}`);
     } catch (error) {
       console.error("Error drawing line:", error instanceof Error ? error.message : String(error));
       process.exit(1);
