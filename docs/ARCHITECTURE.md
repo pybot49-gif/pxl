@@ -2,19 +2,19 @@
 
 ## Tech Stack
 
-| Layer | Choice | Rationale |
-|-------|--------|-----------|
-| Language | TypeScript | Team familiarity, web UI sharing |
-| Runtime | Node.js | Stable sharp support, mature ecosystem |
-| Image I/O | sharp (libvips) | PNG read/write only — fastest native option |
-| Pixel Ops | Raw RGBA buffers | Manual setPixel/composite for full control |
-| CLI | Commander.js | Lightweight, subcommand support, widely used |
-| Web UI | React + Vite | Familiar, fast HMR, component model fits panel-based editor |
-| Canvas Rendering | HTML5 Canvas 2D | Sufficient for pixel art scale; `imageSmoothingEnabled = false` for pixel-perfect zoom |
-| File Format | PNG + sidecar JSON | Git-friendly, human-readable, AI-agent accessible |
-| Testing | Vitest | Fast, Vite-native, supports pixel buffer snapshot comparisons |
-| Package | npm | `npx pxl init` / `npm i -g pxl` — target users have Node.js |
-| Monorepo | Single package (initially) | Split `@pxl/core`, `@pxl/cli`, `@pxl/ui` only when needed |
+| Layer            | Choice                     | Rationale                                                                              |
+| ---------------- | -------------------------- | -------------------------------------------------------------------------------------- |
+| Language         | TypeScript                 | Team familiarity, web UI sharing                                                       |
+| Runtime          | Node.js                    | Stable sharp support, mature ecosystem                                                 |
+| Image I/O        | sharp (libvips)            | PNG read/write only — fastest native option                                            |
+| Pixel Ops        | Raw RGBA buffers           | Manual setPixel/composite for full control                                             |
+| CLI              | Commander.js               | Lightweight, subcommand support, widely used                                           |
+| Web UI           | React + Vite               | Familiar, fast HMR, component model fits panel-based editor                            |
+| Canvas Rendering | HTML5 Canvas 2D            | Sufficient for pixel art scale; `imageSmoothingEnabled = false` for pixel-perfect zoom |
+| File Format      | PNG + sidecar JSON         | Git-friendly, human-readable, AI-agent accessible                                      |
+| Testing          | Vitest                     | Fast, Vite-native, supports pixel buffer snapshot comparisons                          |
+| Package          | npm                        | `npx pxl init` / `npm i -g pxl` — target users have Node.js                            |
+| Monorepo         | Single package (initially) | Split `@pxl/core`, `@pxl/cli`, `@pxl/ui` only when needed                              |
 
 ## Architecture Overview
 
@@ -50,6 +50,7 @@
 The core engine is a pure TypeScript library with **zero I/O dependencies**. It operates entirely on in-memory RGBA buffers. sharp is only used at the I/O boundary for PNG read/write.
 
 This separation means:
+
 - Core is testable without filesystem
 - Core works in browser (Web UI) and Node.js (CLI)
 - Core can be extracted to `@pxl/core` later without refactoring
@@ -57,6 +58,7 @@ This separation means:
 ### Buffer Convention
 
 All image data flows as raw `Uint8Array` / `Buffer` in RGBA format:
+
 - 4 bytes per pixel: R, G, B, A (0-255 each)
 - Row-major order, top-left origin
 - Pixel at (x, y) starts at index `(y * width + x) * 4`
@@ -214,6 +216,7 @@ pxl
 ```
 
 Each subcommand is a thin wrapper that:
+
 1. Parses args
 2. Loads project context (`pxl.json`)
 3. Calls core functions
@@ -269,7 +272,9 @@ function render(ctx: CanvasRenderingContext2D, state: EditorState) {
     if (!layer.visible) continue;
     ctx.globalAlpha = layer.opacity / 255;
     const imageData = new ImageData(
-      new Uint8ClampedArray(layer.buffer), layer.width, layer.height
+      new Uint8ClampedArray(layer.buffer),
+      layer.width,
+      layer.height
     );
     // Draw at 1:1, let CSS transform handle zoom
     ctx.putImageData(imageData, 0, 0);
@@ -287,6 +292,7 @@ function render(ctx: CanvasRenderingContext2D, state: EditorState) {
 ### File Watching
 
 Web UI watches project files for changes (via `fs.watch` / chokidar). When CLI modifies a PNG or JSON, UI hot-reloads. This enables workflow:
+
 1. AI agent runs CLI commands
 2. Web UI updates in real-time
 3. Human sees changes immediately
@@ -298,6 +304,7 @@ Web UI watches project files for changes (via `fs.watch` / chokidar). When CLI m
 Standard PNG, no special encoding. Metadata lives in sidecar JSON, not PNG chunks.
 
 Why not PNG chunks:
+
 - Git diffs are meaningless for binary metadata inside PNG
 - AI agents can't easily read PNG tEXt chunks
 - Separate JSON = separate version control
@@ -316,8 +323,15 @@ For `sprite.png`, metadata lives in `sprite.meta.json`:
   ],
   "palette": "main",
   "tags": {
-    "hair": [[5,2], [6,2], [7,2]],
-    "skin": [[8,10], [9,10]]
+    "hair": [
+      [5, 2],
+      [6, 2],
+      [7, 2]
+    ],
+    "skin": [
+      [8, 10],
+      [9, 10]
+    ]
   }
 }
 ```
@@ -340,6 +354,7 @@ Same seed → same output. Always.
 ```
 
 Templates are rule-based algorithms, not AI-generated:
+
 - Tree: trunk height (random range) + branch pattern (L-system inspired) + leaf cluster placement
 - Terrain: base tile + random pixel scatter within palette constraints
 - NPC: character template + random part selection from available parts + random color within preset ranges
@@ -350,10 +365,11 @@ Seeded PRNG: use a simple xorshift or mulberry32 — fast, deterministic, no cry
 // Seeded PRNG (mulberry32)
 function createRNG(seed: number) {
   return function () {
-    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
-    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
-    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
-    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    seed |= 0;
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
 ```
@@ -361,6 +377,7 @@ function createRNG(seed: number) {
 ## Performance Considerations
 
 Pixel art operations are trivially cheap:
+
 - A 64×96 sprite = 6,144 pixels = 24,576 bytes
 - Full composite of 12 layers = ~74K pixel ops = <1ms
 - Sprite sheet of 48 frames = ~300K pixels = ~5ms
@@ -372,6 +389,7 @@ The only potential bottleneck is **bulk generation** (e.g., `pxl gen npc --count
 ### Migration Path to WebGL
 
 If scene rendering ever needs GPU acceleration:
+
 1. Core engine stays the same (pure buffer ops)
 2. Only `CanvasView.tsx` renderer swaps from Canvas 2D to WebGL/PixiJS
 3. Upload buffers as textures instead of ImageData
@@ -390,10 +408,10 @@ test('setPixel writes correct RGBA', () => {
   const buf = new Uint8Array(4 * 4 * 4); // 4x4
   setPixel(buf, 4, 2, 1, 255, 0, 0, 255);
   const i = (1 * 4 + 2) * 4;
-  expect(buf[i]).toBe(255);     // R
-  expect(buf[i+1]).toBe(0);     // G
-  expect(buf[i+2]).toBe(0);     // B
-  expect(buf[i+3]).toBe(255);   // A
+  expect(buf[i]).toBe(255); // R
+  expect(buf[i + 1]).toBe(0); // G
+  expect(buf[i + 2]).toBe(0); // B
+  expect(buf[i + 3]).toBe(255); // A
 });
 ```
 

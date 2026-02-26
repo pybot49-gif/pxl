@@ -1,0 +1,45 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "allowImportingTsExtensions": false,
+    "verbatimModuleSyntax": false,
+    "noEmit": false,
+    "declaration": true,
+    "outDir": "dist",
+    "rootDir": "src",
+
+    "strict": true,
+    "exactOptionalPropertyTypes": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "noUncheckedSideEffectImports": true,
+
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"],
+      "@/core/*": ["src/core/*"],
+      "@/char/*": ["src/char/*"],
+      "@/anim/*": ["src/anim/*"],
+      "@/iso/*": ["src/iso/*"],
+      "@/scene/*": ["src/scene/*"],
+      "@/gen/*": ["src/gen/*"],
+      "@/export/*": ["src/export/*"],
+      "@/io/*": ["src/io/*"],
+      "@/cli/*": ["src/cli/*"],
+      "@/ui/*": ["src/ui/*"]
+    }
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "test/**/*.ts", "*.config.ts"],
+  "types": ["node", "vitest"],
+  "exclude": ["node_modules", "dist", "coverage"]
+}

@@ -1,6 +1,6 @@
 ---
 name: pixel-art
-description: "Create, edit, and manage pixel art game assets programmatically. Use when creating character sprites, animations, tilesets, scene compositions, or any pixel-based game art. Supports isometric and top-down styles, character part assembly, sprite sheet export, and animation frame generation. Use for tasks like: generating character sprites with mix-and-match parts, creating walk/idle/attack animations, building isometric scenes, exporting sprite sheets for Unity/Godot/Tiled, batch-generating NPC variations, or editing individual pixels/regions by color or semantic tag."
+description: 'Create, edit, and manage pixel art game assets programmatically. Use when creating character sprites, animations, tilesets, scene compositions, or any pixel-based game art. Supports isometric and top-down styles, character part assembly, sprite sheet export, and animation frame generation. Use for tasks like: generating character sprites with mix-and-match parts, creating walk/idle/attack animations, building isometric scenes, exporting sprite sheets for Unity/Godot/Tiled, batch-generating NPC variations, or editing individual pixels/regions by color or semantic tag.'
 ---
 
 # Pixel Art Skill
@@ -24,19 +24,23 @@ Use `sharp` for all image I/O. Create canvases as raw RGBA buffers:
 const sharp = require('sharp');
 
 // Create blank transparent canvas
-const width = 32, height = 48;
+const width = 32,
+  height = 48;
 const buffer = Buffer.alloc(width * height * 4, 0); // RGBA, all transparent
 
 // Set pixel at (x, y) to color
 function setPixel(buf, w, x, y, r, g, b, a = 255) {
   const i = (y * w + x) * 4;
-  buf[i] = r; buf[i+1] = g; buf[i+2] = b; buf[i+3] = a;
+  buf[i] = r;
+  buf[i + 1] = g;
+  buf[i + 2] = b;
+  buf[i + 3] = a;
 }
 
 // Read pixel at (x, y)
 function getPixel(buf, w, x, y) {
   const i = (y * w + x) * 4;
-  return { r: buf[i], g: buf[i+1], b: buf[i+2], a: buf[i+3] };
+  return { r: buf[i], g: buf[i + 1], b: buf[i + 2], a: buf[i + 3] };
 }
 
 // Save as PNG (nearest-neighbor, no interpolation)
@@ -68,8 +72,7 @@ function drawLineV(buf, w, x, y1, y2, r, g, b, a = 255) {
 // Filled rectangle
 function fillRect(buf, w, x, y, rw, rh, r, g, b, a = 255) {
   for (let dy = 0; dy < rh; dy++)
-    for (let dx = 0; dx < rw; dx++)
-      setPixel(buf, w, x + dx, y + dy, r, g, b, a);
+    for (let dx = 0; dx < rw; dx++) setPixel(buf, w, x + dx, y + dy, r, g, b, a);
 }
 
 // Outline rectangle
@@ -89,9 +92,10 @@ function floodFill(buf, w, h, sx, sy, r, g, b, a = 255) {
     const [cx, cy] = stack.pop();
     if (cx < 0 || cy < 0 || cx >= w || cy >= h) continue;
     const p = getPixel(buf, w, cx, cy);
-    if (p.r !== target.r || p.g !== target.g || p.b !== target.b || p.a !== target.a) continue;
+    if (p.r !== target.r || p.g !== target.g || p.b !== target.b || p.a !== target.a)
+      continue;
     setPixel(buf, w, cx, cy, r, g, b, a);
-    stack.push([cx+1,cy],[cx-1,cy],[cx,cy+1],[cx,cy-1]);
+    stack.push([cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]);
   }
 }
 ```
@@ -102,14 +106,14 @@ function floodFill(buf, w, h, sx, sy, r, g, b, a = 255) {
 // Composite foreground onto background (simple alpha blend)
 function compositeLayer(bg, fg, w, h, opacity = 255) {
   for (let i = 0; i < w * h * 4; i += 4) {
-    const fa = (fg[i+3] * opacity) / 255 / 255;
-    const ba = bg[i+3] / 255;
+    const fa = (fg[i + 3] * opacity) / 255 / 255;
+    const ba = bg[i + 3] / 255;
     const oa = fa + ba * (1 - fa);
     if (oa === 0) continue;
     for (let c = 0; c < 3; c++) {
-      bg[i+c] = Math.round((fg[i+c] * fa + bg[i+c] * ba * (1 - fa)) / oa);
+      bg[i + c] = Math.round((fg[i + c] * fa + bg[i + c] * ba * (1 - fa)) / oa);
     }
-    bg[i+3] = Math.round(oa * 255);
+    bg[i + 3] = Math.round(oa * 255);
   }
 }
 
@@ -117,18 +121,19 @@ function compositeLayer(bg, fg, w, h, opacity = 255) {
 function pasteAt(bg, bgW, fg, fgW, fgH, dx, dy) {
   for (let y = 0; y < fgH; y++) {
     for (let x = 0; x < fgW; x++) {
-      const tx = dx + x, ty = dy + y;
+      const tx = dx + x,
+        ty = dy + y;
       if (tx < 0 || ty < 0 || tx >= bgW) continue;
       const si = (y * fgW + x) * 4;
-      if (fg[si+3] === 0) continue; // skip transparent
+      if (fg[si + 3] === 0) continue; // skip transparent
       const di = (ty * bgW + tx) * 4;
-      const fa = fg[si+3] / 255;
-      const ba = bg[di+3] / 255;
+      const fa = fg[si + 3] / 255;
+      const ba = bg[di + 3] / 255;
       const oa = fa + ba * (1 - fa);
       for (let c = 0; c < 3; c++) {
-        bg[di+c] = Math.round((fg[si+c] * fa + bg[di+c] * ba * (1 - fa)) / oa);
+        bg[di + c] = Math.round((fg[si + c] * fa + bg[di + c] * ba * (1 - fa)) / oa);
       }
-      bg[di+3] = Math.round(oa * 255);
+      bg[di + 3] = Math.round(oa * 255);
     }
   }
 }
@@ -141,7 +146,10 @@ function pasteAt(bg, bgW, fg, fgW, fgH, dx, dy) {
 async function createSpriteSheet(framePaths, cols, frameW, frameH, padding = 1) {
   const frames = [];
   for (const p of framePaths) {
-    const { data } = await sharp(p).raw().ensureAlpha().toBuffer({ resolveWithObject: true });
+    const { data } = await sharp(p)
+      .raw()
+      .ensureAlpha()
+      .toBuffer({ resolveWithObject: true });
     frames.push(data);
   }
   const rows = Math.ceil(frames.length / cols);
@@ -149,17 +157,25 @@ async function createSpriteSheet(framePaths, cols, frameW, frameH, padding = 1) 
   const sheetH = rows * (frameH + padding) - padding;
   const sheet = Buffer.alloc(sheetW * sheetH * 4, 0);
 
-  const meta = { image: 'sheet.png', tileWidth: frameW, tileHeight: frameH, frames: [] };
+  const meta = {
+    image: 'sheet.png',
+    tileWidth: frameW,
+    tileHeight: frameH,
+    frames: [],
+  };
 
   frames.forEach((frame, i) => {
-    const col = i % cols, row = Math.floor(i / cols);
-    const ox = col * (frameW + padding), oy = row * (frameH + padding);
+    const col = i % cols,
+      row = Math.floor(i / cols);
+    const ox = col * (frameW + padding),
+      oy = row * (frameH + padding);
     pasteAt(sheet, sheetW, frame, frameW, frameH, ox, oy);
     meta.frames.push({ x: ox, y: oy, w: frameW, h: frameH });
   });
 
   await sharp(sheet, { raw: { width: sheetW, height: sheetH, channels: 4 } })
-    .png().toFile('sheet.png');
+    .png()
+    .toFile('sheet.png');
   require('fs').writeFileSync('sheet.json', JSON.stringify(meta, null, 2));
 }
 ```
@@ -172,15 +188,17 @@ function shade(r, g, b, amount = -30) {
   return [
     Math.max(0, Math.min(255, r + amount)),
     Math.max(0, Math.min(255, g + amount)),
-    Math.max(0, Math.min(255, b + amount))
+    Math.max(0, Math.min(255, b + amount)),
   ];
 }
 
 // Recolor: replace all pixels of one color with another
 function recolor(buf, w, h, from, to) {
   for (let i = 0; i < w * h * 4; i += 4) {
-    if (buf[i] === from.r && buf[i+1] === from.g && buf[i+2] === from.b) {
-      buf[i] = to.r; buf[i+1] = to.g; buf[i+2] = to.b;
+    if (buf[i] === from.r && buf[i + 1] === from.g && buf[i + 2] === from.b) {
+      buf[i] = to.r;
+      buf[i + 1] = to.g;
+      buf[i + 2] = to.b;
     }
   }
 }
@@ -189,9 +207,12 @@ function recolor(buf, w, h, from, to) {
 function extractPalette(buf, w, h) {
   const colors = new Set();
   for (let i = 0; i < w * h * 4; i += 4) {
-    if (buf[i+3] > 0) colors.add(`${buf[i]},${buf[i+1]},${buf[i+2]}`);
+    if (buf[i + 3] > 0) colors.add(`${buf[i]},${buf[i + 1]},${buf[i + 2]}`);
   }
-  return [...colors].map(c => { const [r,g,b] = c.split(',').map(Number); return {r,g,b}; });
+  return [...colors].map((c) => {
+    const [r, g, b] = c.split(',').map(Number);
+    return { r, g, b };
+  });
 }
 ```
 
@@ -204,13 +225,21 @@ function addOutline(buf, w, h, r, g, b) {
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const i = (y * w + x) * 4;
-      if (buf[i+3] > 0) continue; // skip non-transparent
+      if (buf[i + 3] > 0) continue; // skip non-transparent
       // check 4 neighbors
-      const neighbors = [[x-1,y],[x+1,y],[x,y-1],[x,y+1]];
+      const neighbors = [
+        [x - 1, y],
+        [x + 1, y],
+        [x, y - 1],
+        [x, y + 1],
+      ];
       for (const [nx, ny] of neighbors) {
         if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
         if (buf[(ny * w + nx) * 4 + 3] > 0) {
-          out[i] = r; out[i+1] = g; out[i+2] = b; out[i+3] = 255;
+          out[i] = r;
+          out[i + 1] = g;
+          out[i + 2] = b;
+          out[i + 3] = 255;
           break;
         }
       }
@@ -223,6 +252,7 @@ function addOutline(buf, w, h, r, g, b) {
 ## Art Style & Expression
 
 See `references/art-style-guide.md` for comprehensive guidance on:
+
 - **Color theory** — hue shifting, ramp construction, palette harmony
 - **Outlines** — full black, colored (sel-out), selective, none
 - **Shading** — light source, dithering, manual AA
@@ -274,7 +304,16 @@ Characters are built by compositing part layers in order. See `references/charac
     "outfit-primary": { "primary": "#CC3333" },
     "outline": "#2A2A2A"
   },
-  "views": ["front", "front-left", "left", "back-left", "back", "back-right", "right", "front-right"]
+  "views": [
+    "front",
+    "front-left",
+    "left",
+    "back-left",
+    "back",
+    "back-right",
+    "right",
+    "front-right"
+  ]
 }
 ```
 
@@ -289,10 +328,25 @@ async function renderCharacter(charJson, view) {
 
   // Layer order
   const slotOrder = [
-    'hair-back', 'back-accessory', '_body',
-    'legs', 'feet', 'torso', 'belt', 'arms', 'hands',
-    'ears', 'eyes', 'eyebrows', 'nose', 'mouth', 'facial-hair',
-    'hair-front', 'head-accessory', 'weapon-main', 'weapon-off'
+    'hair-back',
+    'back-accessory',
+    '_body',
+    'legs',
+    'feet',
+    'torso',
+    'belt',
+    'arms',
+    'hands',
+    'ears',
+    'eyes',
+    'eyebrows',
+    'nose',
+    'mouth',
+    'facial-hair',
+    'hair-front',
+    'head-accessory',
+    'weapon-main',
+    'weapon-off',
   ];
 
   for (const slot of slotOrder) {
@@ -307,8 +361,15 @@ async function renderCharacter(charJson, view) {
       if (colorGroup && colors[colorGroup]) {
         applyColors(partData.buffer, partData.w, partData.h, colors[colorGroup]);
       }
-      pasteAt(canvas, width, partData.buffer, partData.w, partData.h,
-              partData.anchor.x, partData.anchor.y);
+      pasteAt(
+        canvas,
+        width,
+        partData.buffer,
+        partData.w,
+        partData.h,
+        partData.anchor.x,
+        partData.anchor.y
+      );
     }
   }
 
@@ -335,7 +396,7 @@ async function generateWalkCycle(charJson, view, templateFrames) {
 
 // Animation metadata
 const walkAnim = {
-  name: "walk",
+  name: 'walk',
   fps: 8,
   loop: true,
   frames: [
@@ -344,23 +405,23 @@ const walkAnim = {
     { duration: 125 },
     { duration: 125 },
     { duration: 125 },
-    { duration: 125 }
-  ]
+    { duration: 125 },
+  ],
 };
 ```
 
 ### Common Animation Templates
 
-| Name | Frames | FPS | Loop | Notes |
-|------|--------|-----|------|-------|
-| idle | 2-4 | 2-4 | yes | Subtle breathing/sway |
-| walk | 6-8 | 8 | yes | Weight shift + arm swing |
-| run | 6-8 | 10 | yes | Wider stride |
-| attack-melee | 6 | 12 | no | Wind up → swing → recover |
-| attack-range | 4-6 | 10 | no | Draw → release |
-| hit | 3 | 8 | no | Impact → stagger |
-| death | 6 | 6 | no | Collapse |
-| jump | 4 | 10 | no | Crouch → air → land |
+| Name         | Frames | FPS | Loop | Notes                     |
+| ------------ | ------ | --- | ---- | ------------------------- |
+| idle         | 2-4    | 2-4 | yes  | Subtle breathing/sway     |
+| walk         | 6-8    | 8   | yes  | Weight shift + arm swing  |
+| run          | 6-8    | 10  | yes  | Wider stride              |
+| attack-melee | 6      | 12  | no   | Wind up → swing → recover |
+| attack-range | 4-6    | 10  | no   | Draw → release            |
+| hit          | 3      | 8   | no   | Impact → stagger          |
+| death        | 6      | 6   | no   | Collapse                  |
+| jump         | 4      | 10  | no   | Crouch → air → land       |
 
 ## Isometric Helpers
 
@@ -371,7 +432,8 @@ See `references/isometric.md` for iso grid math, tile drawing, depth sorting, an
 ```js
 // Draw isometric diamond tile (2:1 ratio)
 function drawIsoTile(buf, w, cx, cy, tileW, tileH, r, g, b) {
-  const hw = tileW / 2, hh = tileH / 2;
+  const hw = tileW / 2,
+    hh = tileH / 2;
   for (let dy = -hh; dy <= hh; dy++) {
     const span = Math.round(hw * (1 - Math.abs(dy) / hh));
     for (let dx = -span; dx <= span; dx++) {
@@ -384,7 +446,7 @@ function drawIsoTile(buf, w, cx, cy, tileW, tileH, r, g, b) {
 function isoToScreen(gridX, gridY, tileW = 32, tileH = 16) {
   return {
     x: (gridX - gridY) * (tileW / 2),
-    y: (gridX + gridY) * (tileH / 2)
+    y: (gridX + gridY) * (tileH / 2),
   };
 }
 ```
@@ -392,6 +454,7 @@ function isoToScreen(gridX, gridY, tileW = 32, tileH = 16) {
 ## File Organization
 
 When working within a PXL project:
+
 ```
 chars/<name>/char.json          — character definition
 chars/<name>/renders/<view>.png — rendered views
@@ -403,6 +466,7 @@ exports/sheets/                 — generated sprite sheets + JSON
 ```
 
 When working without PXL project (raw files):
+
 - Keep PNGs + sidecar `.meta.json` for semantic tags
 - Use consistent naming: `<name>-<view>-<frame>.png`
 - Always export metadata JSON alongside sprite sheets

@@ -11,18 +11,21 @@ PXL is a CLI + Web UI toolkit for creating, editing, and managing pixel art asse
 ## Core Concepts
 
 ### Canvas
+
 - Fixed-resolution bitmap, 32-bit RGBA (8 bits per channel)
 - Supported sizes: 8x8 through 256x256
 - Pixel-perfect — no anti-aliasing, no sub-pixel rendering
 - Coordinate system: (0,0) = top-left
 
 ### Layer
+
 - Each canvas contains ordered layers
 - Properties: name, opacity (0-255), blend mode, visible, locked
 - Blend modes: normal, multiply, overlay, screen, add
 - Layers compose top-down (highest index = top)
 
 ### Object
+
 - A named, reusable collection of pixels with a bounding box
 - Can be placed on any layer at any position
 - Has an anchor point (for alignment/rotation)
@@ -30,12 +33,14 @@ PXL is a CLI + Web UI toolkit for creating, editing, and managing pixel art asse
 - Objects are referenced by ID, can be instanced across scenes
 
 ### Palette
+
 - Named set of colors (2-256 colors)
 - Constraint mode: canvas can be locked to a palette
 - Built-in presets: NES (54), GameBoy (4), PICO-8 (16), Endesga-32, custom
 - Palette operations: remap, reduce, extract-from-image
 
 ### Animation
+
 - Frame-based timeline (no tweening by default)
 - Each frame = a canvas state (layers + objects)
 - Properties: frame duration (ms), loop, ping-pong
@@ -44,6 +49,7 @@ PXL is a CLI + Web UI toolkit for creating, editing, and managing pixel art asse
 - Keyframe interpolation: pixel-shift (optional, for AI-assisted in-betweening)
 
 ### Scene
+
 - Composition of multiple sprites/objects on a larger canvas
 - Grid-based placement (optional snap)
 - Depth/z-ordering
@@ -52,6 +58,7 @@ PXL is a CLI + Web UI toolkit for creating, editing, and managing pixel art asse
 - Export: flattened PNG, or individual sprites + placement JSON
 
 ### Isometric
+
 - First-class isometric support (2:1 pixel ratio)
 - Iso grid overlay and snapping
 - Iso-aware primitives (cube, floor, wall, stairs)
@@ -77,18 +84,19 @@ A base body defines the silhouette and proportions. It is the foundation that al
 **Body Types (build × height matrix):**
 
 | Build \ Height | very-short | short | average | tall | very-tall |
-|----------------|-----------|-------|---------|------|-----------|
-| very-skinny    | ✓ | ✓ | ✓ | ✓ | ✓ |
-| skinny         | ✓ | ✓ | ✓ | ✓ | ✓ |
-| normal         | ✓ | ✓ | ✓ | ✓ | ✓ |
-| fat            | ✓ | ✓ | ✓ | ✓ | ✓ |
-| very-fat       | ✓ | ✓ | ✓ | ✓ | ✓ |
-| muscular       | ✓ | ✓ | ✓ | ✓ | ✓ |
-| very-muscular  | ✓ | ✓ | ✓ | ✓ | ✓ |
+| -------------- | ---------- | ----- | ------- | ---- | --------- |
+| very-skinny    | ✓          | ✓     | ✓       | ✓    | ✓         |
+| skinny         | ✓          | ✓     | ✓       | ✓    | ✓         |
+| normal         | ✓          | ✓     | ✓       | ✓    | ✓         |
+| fat            | ✓          | ✓     | ✓       | ✓    | ✓         |
+| very-fat       | ✓          | ✓     | ✓       | ✓    | ✓         |
+| muscular       | ✓          | ✓     | ✓       | ✓    | ✓         |
+| very-muscular  | ✓          | ✓     | ✓       | ✓    | ✓         |
 
 Each base body is a pixel art template at a specific resolution (e.g., 32x48 for chibi, 16x32 for small). Base bodies define **anchor points** for every attachable part slot.
 
 **Resolution tiers:**
+
 - `micro`: 8x12 — overworld/minimap
 - `small`: 16x24 — standard game sprite
 - `medium`: 32x48 — detailed chibi
@@ -136,14 +144,14 @@ slot: hair-front
 tags: [short, spiky, anime]
 colorable: true
 color-regions:
-  primary: [[5,2], [6,2], [7,2], ...]   # pixel coords that accept primary color
-  shadow: [[5,3], [6,3], ...]            # auto-darkened
-  highlight: [[6,1], [7,1], ...]         # auto-lightened
-compatible-bodies: [all]                  # or specific builds
+  primary: [[5, 2], [6, 2], [7, 2], ...] # pixel coords that accept primary color
+  shadow: [[5, 3], [6, 3], ...] # auto-darkened
+  highlight: [[6, 1], [7, 1], ...] # auto-lightened
+compatible-bodies: [all] # or specific builds
 views: [front, front-left, left, back-left, back, back-right, right, front-right]
 pixel-data:
-  front: "parts/hair/spiky/front.png"
-  front-left: "parts/hair/spiky/front-left.png"
+  front: 'parts/hair/spiky/front.png'
+  front-left: 'parts/hair/spiky/front-left.png'
   # ...
 ```
 
@@ -154,29 +162,30 @@ Characters use a **semantic color palette** — not raw hex values:
 ```yaml
 colors:
   skin:
-    primary: "#FFD5A0"     # base skin
-    shadow: auto           # auto-darken 20%
-    highlight: auto        # auto-lighten 15%
+    primary: '#FFD5A0' # base skin
+    shadow: auto # auto-darken 20%
+    highlight: auto # auto-lighten 15%
   hair:
-    primary: "#3A2A1A"
+    primary: '#3A2A1A'
     shadow: auto
     highlight: auto
   eyes:
-    iris: "#4A7ABC"
-    pupil: "#1A1A2A"
-    white: "#F0F0F0"
+    iris: '#4A7ABC'
+    pupil: '#1A1A2A'
+    white: '#F0F0F0'
   outfit-primary:
-    primary: "#CC3333"
+    primary: '#CC3333'
     shadow: auto
     highlight: auto
   outfit-secondary:
-    primary: "#EEEECC"
+    primary: '#EEEECC'
     shadow: auto
     highlight: auto
-  outline: "#2A2A2A"       # character outline color
+  outline: '#2A2A2A' # character outline color
 ```
 
 **Skin presets:**
+
 - pale, light, medium-light, medium, medium-dark, dark, very-dark
 - fantasy: green (orc), blue (undead), red (demon), etc.
 
@@ -251,24 +260,25 @@ Every part must provide pixel data for all 8 directions. The character system co
 
 Built-in animation templates that work with the character system:
 
-| Template | Frames | Description |
-|----------|--------|-------------|
-| `idle` | 2-4 | Subtle breathing/sway |
-| `walk` | 6-8 | Standard walk cycle |
-| `run` | 6-8 | Faster stride |
-| `attack-melee` | 6 | Wind up → swing → recover |
-| `attack-range` | 4-6 | Draw → aim → release |
-| `cast` | 6 | Raise hands → magic effect → recover |
-| `hit` | 3 | Impact → stagger → recover |
-| `death` | 6 | Collapse sequence |
-| `jump` | 4 | Crouch → rise → air → land |
-| `climb` | 4 | Ladder/wall climb cycle |
-| `interact` | 4 | Reach out → grab → pull back |
-| `sit` | 2 | Standing → seated |
-| `emote-wave` | 4 | Hand wave |
-| `emote-nod` | 2 | Head nod |
+| Template       | Frames | Description                          |
+| -------------- | ------ | ------------------------------------ |
+| `idle`         | 2-4    | Subtle breathing/sway                |
+| `walk`         | 6-8    | Standard walk cycle                  |
+| `run`          | 6-8    | Faster stride                        |
+| `attack-melee` | 6      | Wind up → swing → recover            |
+| `attack-range` | 4-6    | Draw → aim → release                 |
+| `cast`         | 6      | Raise hands → magic effect → recover |
+| `hit`          | 3      | Impact → stagger → recover           |
+| `death`        | 6      | Collapse sequence                    |
+| `jump`         | 4      | Crouch → rise → air → land           |
+| `climb`        | 4      | Ladder/wall climb cycle              |
+| `interact`     | 4      | Reach out → grab → pull back         |
+| `sit`          | 2      | Standing → seated                    |
+| `emote-wave`   | 4      | Hand wave                            |
+| `emote-nod`    | 2      | Head nod                             |
 
 Each template defines per-frame transforms for each body part:
+
 - Position offset (dx, dy)
 - Rotation (0°, 90°, 180°, 270°)
 - Flip (H/V)
@@ -348,6 +358,7 @@ pxl iso place hero --grid 3,2 --z 0 --output scene.png
 ### Iso Character Rendering
 
 Characters rendered for isometric view need adjusted proportions:
+
 - Slightly top-down perspective
 - Feet align to iso tile diamond
 - Shadow projected onto iso floor plane
@@ -527,6 +538,7 @@ my-game/
 ## CLI Reference
 
 ### Project
+
 ```bash
 pxl init [--name <name>] [--iso] [--template <starter>]
 pxl status                        # project overview: assets, chars, anims count
@@ -535,6 +547,7 @@ pxl build                         # render all + export all sheets
 ```
 
 ### Canvas / Sprite
+
 ```bash
 pxl sprite create <path> --size <WxH>
 pxl sprite edit <path>            # open in web UI
@@ -543,6 +556,7 @@ pxl sprite resize <path> --size <WxH> [--anchor center|top-left|...]
 ```
 
 ### Drawing (CLI)
+
 ```bash
 pxl draw pixel <path> <x,y> <color>
 pxl draw line <path> <x1,y1> <x2,y2> <color>
@@ -556,6 +570,7 @@ pxl draw outline <path> <color>              # auto-outline non-transparent pixe
 ```
 
 ### Layer
+
 ```bash
 pxl layer add <path> --name <name> [--above <n>] [--below <n>]
 pxl layer remove <path> <name-or-index>
@@ -567,6 +582,7 @@ pxl layer visible <path> <name> <true|false>
 ```
 
 ### Palette
+
 ```bash
 pxl palette create <name> --colors "#FF0000,#00FF00,#0000FF"
 pxl palette import <name> --from <image.png>     # extract palette from image
@@ -576,6 +592,7 @@ pxl palette constrain <path> --palette <name>     # lock future edits to palette
 ```
 
 ### Character
+
 ```bash
 pxl char create --name <n> --body <build/height> --res <tier> [--iso]
 pxl char list
@@ -599,6 +616,7 @@ pxl char parts import <path> --slot <slot> --id <id>
 ```
 
 ### Animation
+
 ```bash
 pxl anim create <char/anim-name> --template <template> --views <views>
 pxl anim create <char/anim-name> --frames <n> --fps <fps> [--loop]
@@ -615,6 +633,7 @@ pxl anim export <char/anim> --format <sheet|gif|apng|frames>
 ```
 
 ### Isometric
+
 ```bash
 pxl iso grid --tile <WxH> --show                  # overlay reference
 pxl iso tile --size <WxH> --color <hex>
@@ -626,6 +645,7 @@ pxl iso scene render <scene-path>
 ```
 
 ### Procedural Generation
+
 ```bash
 pxl gen tree --style <style> [--size WxH] [--palette <name>] [--seed <n>]
 pxl gen terrain --type <type> [--tile WxH] [--iso] [--variations <n>]
@@ -635,6 +655,7 @@ pxl gen npc --base <template> --count <n> --vary <fields>
 ```
 
 ### Scene
+
 ```bash
 pxl scene create <name> --size <WxH>
 pxl scene place <scene> <sprite> --pos <x,y> [--z <n>]
@@ -644,6 +665,7 @@ pxl scene preview <scene>                         # open web UI
 ```
 
 ### Export
+
 ```bash
 pxl export sheet <path> [--layout grid|strip-h|strip-v] [--padding <px>]
 pxl export gif <path> [--view <view>] [--scale <n>x]
@@ -656,6 +678,7 @@ pxl export all                                    # build everything in exports/
 ```
 
 ### Semantic Tags (AI-assist)
+
 ```bash
 pxl tag set <path> <x,y> <tag>                    # tag a pixel
 pxl tag region <path> <x,y,w,h> <tag>             # tag a region
@@ -666,6 +689,7 @@ pxl tag recolor <path> <tag> <color>               # recolor by tag
 ```
 
 ### Describe (AI-readable)
+
 ```bash
 pxl describe <path>                                # text description of asset
 pxl describe <path> --format json                  # structured description
@@ -674,6 +698,7 @@ pxl describe scene <name>                          # scene layout description
 ```
 
 ### Web UI
+
 ```bash
 pxl ui                           # start web UI server (default :3000)
 pxl ui --port 8080               # custom port
@@ -696,7 +721,8 @@ Every pixel can carry optional semantic metadata:
 
 ```json
 {
-  "x": 5, "y": 3,
+  "x": 5,
+  "y": 3,
   "rgba": [255, 0, 0, 255],
   "tag": "hair",
   "colorGroup": "hair.primary"
@@ -704,6 +730,7 @@ Every pixel can carry optional semantic metadata:
 ```
 
 This enables AI operations like:
+
 - "Change all hair pixels to blue" → `pxl tag recolor hero hair "#0000FF"`
 - "Describe what's at position 5,3" → `pxl describe hero --pixel 5,3` → "hair (red)"
 - "Select all skin pixels" → `pxl tag select hero skin` → coordinate list
@@ -747,16 +774,16 @@ Sprite sheet JSON metadata (compatible with Tiled, Unity, Godot):
 
 ## What PXL Does NOT Do
 
-| Out of Scope | Use Instead |
-|-------------|-------------|
-| Tile map editing | Tiled |
-| Game engine / runtime | Unity, Godot |
-| AI image generation | DALL-E, Stable Diffusion, then import |
-| Vector / SVG graphics | Inkscape, Figma |
-| 3D modeling | Blender, MagicaVoxel |
-| Filters (blur, glow) | Not pixel art |
-| Sound / music | Other tools |
-| Anti-aliasing | Pixel art = hard edges |
+| Out of Scope          | Use Instead                           |
+| --------------------- | ------------------------------------- |
+| Tile map editing      | Tiled                                 |
+| Game engine / runtime | Unity, Godot                          |
+| AI image generation   | DALL-E, Stable Diffusion, then import |
+| Vector / SVG graphics | Inkscape, Figma                       |
+| 3D modeling           | Blender, MagicaVoxel                  |
+| Filters (blur, glow)  | Not pixel art                         |
+| Sound / music         | Other tools                           |
+| Anti-aliasing         | Pixel art = hard edges                |
 
 ---
 

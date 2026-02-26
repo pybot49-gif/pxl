@@ -11,7 +11,7 @@ Standard pixel art isometric uses **2:1 ratio** — for every 2 horizontal pixel
 function isoToScreen(gridX, gridY, tileW = 32, tileH = 16) {
   return {
     x: (gridX - gridY) * (tileW / 2),
-    y: (gridX + gridY) * (tileH / 2)
+    y: (gridX + gridY) * (tileH / 2),
   };
 }
 
@@ -19,7 +19,7 @@ function isoToScreen(gridX, gridY, tileW = 32, tileH = 16) {
 function screenToIso(screenX, screenY, tileW = 32, tileH = 16) {
   return {
     gridX: (screenX / (tileW / 2) + screenY / (tileH / 2)) / 2,
-    gridY: (screenY / (tileH / 2) - screenX / (tileW / 2)) / 2
+    gridY: (screenY / (tileH / 2) - screenX / (tileW / 2)) / 2,
   };
 }
 
@@ -28,18 +28,18 @@ function isoToScreenWithZ(gridX, gridY, gridZ, tileW = 32, tileH = 16, zScale = 
   const base = isoToScreen(gridX, gridY, tileW, tileH);
   return {
     x: base.x,
-    y: base.y - gridZ * zScale  // up is negative Y
+    y: base.y - gridZ * zScale, // up is negative Y
   };
 }
 ```
 
 ### Common Tile Sizes
 
-| Tile | Ratio | Use |
-|------|-------|-----|
-| 16×8 | 2:1 | Small/retro |
-| 32×16 | 2:1 | Standard |
-| 64×32 | 2:1 | Detailed |
+| Tile  | Ratio | Use         |
+| ----- | ----- | ----------- |
+| 16×8  | 2:1   | Small/retro |
+| 32×16 | 2:1   | Standard    |
+| 64×32 | 2:1   | Detailed    |
 
 ## Drawing Iso Tiles
 
@@ -53,12 +53,12 @@ function drawIsoDiamond(buf, w, cx, cy, tileW, tileH, r, g, b) {
   const hh = tileH / 2;
   // Top half
   for (let row = 0; row < hh; row++) {
-    const span = Math.round((row + 1) * hw / hh);
+    const span = Math.round(((row + 1) * hw) / hh);
     drawLineH(buf, w, cx - span + 1, cx + span - 1, cy - hh + row, r, g, b);
   }
   // Bottom half
   for (let row = 0; row < hh; row++) {
-    const span = Math.round((hh - row) * hw / hh);
+    const span = Math.round(((hh - row) * hw) / hh);
     drawLineH(buf, w, cx - span + 1, cx + span - 1, cy + row, r, g, b);
   }
 }
@@ -83,7 +83,18 @@ A cube has 3 visible faces: top, left, right.
 ```
 
 ```js
-function drawIsoCube(buf, w, cx, cy, tileW, tileH, height, topColor, leftColor, rightColor) {
+function drawIsoCube(
+  buf,
+  w,
+  cx,
+  cy,
+  tileW,
+  tileH,
+  height,
+  topColor,
+  leftColor,
+  rightColor
+) {
   // Top face (diamond at top)
   drawIsoDiamond(buf, w, cx, cy - height, tileW, tileH, ...topColor);
 
@@ -93,7 +104,7 @@ function drawIsoCube(buf, w, cx, cy, tileW, tileH, height, topColor, leftColor, 
   for (let row = 0; row < height; row++) {
     // Left edge follows top-left diamond edge downward
     for (let col = 0; col < hw; col++) {
-      const edgeY = Math.round(col * hh / hw);
+      const edgeY = Math.round((col * hh) / hw);
       const px = cx - hw + col;
       const py = cy - hh + edgeY + row - height + hh;
       if (px >= 0 && py >= 0) setPixel(buf, w, px, py, ...leftColor);
@@ -103,7 +114,7 @@ function drawIsoCube(buf, w, cx, cy, tileW, tileH, height, topColor, leftColor, 
   // Right face (parallelogram) — mirror of left
   for (let row = 0; row < height; row++) {
     for (let col = 0; col < hw; col++) {
-      const edgeY = Math.round(col * hh / hw);
+      const edgeY = Math.round((col * hh) / hw);
       const px = cx + col;
       const py = cy + edgeY + row - height;
       if (px >= 0 && py >= 0) setPixel(buf, w, px, py, ...rightColor);
@@ -115,11 +126,13 @@ function drawIsoCube(buf, w, cx, cy, tileW, tileH, height, topColor, leftColor, 
 ### Iso Wall Segments
 
 **Left wall** — extends from top-left edge downward:
+
 - Top edge follows 2:1 slope going down-right
 - Left edge is vertical
 - Standard height: 2-3× tile height
 
 **Right wall** — extends from top-right edge downward:
+
 - Top edge follows 2:1 slope going down-left
 - Right edge is vertical
 
@@ -133,8 +146,18 @@ function drawIsoStairs(buf, w, cx, cy, tileW, tileH, steps, stepH, color) {
     const offsetY = -i * stepH;
     const gridOffset = i; // each step moves one grid unit
     const pos = isoToScreenWithZ(0, gridOffset, 0, tileW, tileH);
-    drawIsoCube(buf, w, cx + pos.x, cy + pos.y + offsetY,
-                tileW, tileH, stepH, color.top, color.left, color.right);
+    drawIsoCube(
+      buf,
+      w,
+      cx + pos.x,
+      cy + pos.y + offsetY,
+      tileW,
+      tileH,
+      stepH,
+      color.top,
+      color.left,
+      color.right
+    );
   }
 }
 ```
@@ -170,7 +193,12 @@ Objects that span multiple tiles need correct sorting. Define footprint as grid 
 ```json
 {
   "name": "large-tree",
-  "footprint": [[0,0], [1,0], [0,1], [1,1]],
+  "footprint": [
+    [0, 0],
+    [1, 0],
+    [0, 1],
+    [1, 1]
+  ],
   "anchorCell": [0, 0],
   "zHeight": 4
 }
@@ -183,7 +211,7 @@ Sort by the **maximum depth cell** in the footprint.
 ```js
 async function renderIsoScene(scene, tileW = 32, tileH = 16) {
   // Calculate screen bounds
-  const positions = scene.objects.map(obj =>
+  const positions = scene.objects.map((obj) =>
     isoToScreenWithZ(obj.gridX, obj.gridY, obj.gridZ || 0, tileW, tileH)
   );
   // ... determine canvas size from min/max positions + sprite sizes
@@ -196,8 +224,15 @@ async function renderIsoScene(scene, tileW = 32, tileH = 16) {
   for (const obj of sorted) {
     const pos = isoToScreenWithZ(obj.gridX, obj.gridY, obj.gridZ || 0, tileW, tileH);
     const sprite = await loadSprite(obj.sprite);
-    pasteAt(canvas, canvasW, sprite.data, sprite.width, sprite.height,
-            pos.x + offsetX, pos.y + offsetY);
+    pasteAt(
+      canvas,
+      canvasW,
+      sprite.data,
+      sprite.width,
+      sprite.height,
+      pos.x + offsetX,
+      pos.y + offsetY
+    );
   }
   return canvas;
 }

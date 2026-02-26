@@ -8,12 +8,12 @@ Every pixel is a deliberate decision. At low resolutions, a single pixel can be 
 
 ### Resolution and Detail Budget
 
-| Resolution | Detail Level | Facial Expression | Body Language |
-|-----------|-------------|-------------------|---------------|
-| 8×12 | Minimal | 2 dots for eyes, 0-1px mouth | Silhouette only |
-| 16×24 | Low | 2-4px eyes, 1-2px mouth, no nose | Simple arm/leg poses |
-| 32×48 | Medium | Distinct eyes/brows/mouth/nose | Full pose range |
-| 64×96 | High | Detailed expression, teeth possible | Subtle gestures |
+| Resolution | Detail Level | Facial Expression                   | Body Language        |
+| ---------- | ------------ | ----------------------------------- | -------------------- |
+| 8×12       | Minimal      | 2 dots for eyes, 0-1px mouth        | Silhouette only      |
+| 16×24      | Low          | 2-4px eyes, 1-2px mouth, no nose    | Simple arm/leg poses |
+| 32×48      | Medium       | Distinct eyes/brows/mouth/nose      | Full pose range      |
+| 64×96      | High         | Detailed expression, teeth possible | Subtle gestures      |
 
 **Rule of thumb:** If you can't clearly tell what a pixel represents, it shouldn't be there.
 
@@ -39,12 +39,13 @@ Skin example:
 
 Green foliage:
   Highlight: yellow-green #A8D848  (shift toward yellow in light)
-  Base:      green        #68A830  
+  Base:      green        #68A830
   Shadow:    blue-green   #3A7828  (shift toward blue in shadow)
   Deep shadow: dark teal  #205020  (even more blue)
 ```
 
 **General rule:**
+
 - Highlights shift toward **warm** (yellow/orange)
 - Shadows shift toward **cool** (blue/purple)
 - This mimics how natural light works and makes colors feel alive
@@ -52,6 +53,7 @@ Green foliage:
 ### Saturation in Shadows
 
 Shadows are often **less saturated** than midtones, but not always:
+
 - Skin shadows: slightly less saturated
 - Fabric shadows: can maintain or increase saturation
 - Metal shadows: much less saturated (toward grey)
@@ -73,6 +75,7 @@ A color ramp is a sequence of colors from dark to light for one material:
 ```
 
 **Building a ramp:**
+
 1. Start with the base/midtone color
 2. For shadow: decrease lightness 15-20%, shift hue 5-10° toward cool, decrease saturation 5-10%
 3. For highlight: increase lightness 10-15%, shift hue 5-10° toward warm, decrease saturation 5%
@@ -88,6 +91,7 @@ Choose palette colors that share underlying harmony:
 - **Triadic:** Three colors 120° apart. Vibrant, balanced.
 
 For game sprites, a practical approach:
+
 1. Pick 2-3 base hues for the character's outfit
 2. Add skin tone ramp (3 colors)
 3. Add outline color (usually dark desaturated version of dominant hue, NOT pure black)
@@ -99,12 +103,14 @@ For game sprites, a practical approach:
 ### Outline Styles
 
 **Full black outline:**
+
 - Every sprite edge has #000000 or near-black outline
 - Highest contrast, most readable at tiny sizes
 - Classic retro feel (NES, GBA era)
 - Best for: 16×24 and smaller, high-contrast art styles
 
 **Colored outline (sel-out / selective outlining):**
+
 - Outline color matches nearby fill but darker
 - Skin outline = dark warm brown, not black
 - Hair outline = dark version of hair color
@@ -112,12 +118,14 @@ For game sprites, a practical approach:
 - Best for: 32×48 and larger, painterly styles
 
 **Selective outline:**
+
 - Black outline on outside/bottom edges (ground contact, shadow side)
 - Colored or no outline on inside edges and light-facing edges
 - Most sophisticated look
 - Best for: medium to large sprites, detailed styles
 
 **No outline:**
+
 - Sprites defined purely by color contrast
 - Requires strong palette with high contrast between adjacent materials
 - Ethereal, soft feel
@@ -137,6 +145,7 @@ For game sprites, a practical approach:
 **Pick one. Stick with it.** Standard convention is **top-left** (light comes from upper-left).
 
 This means:
+
 - Top surfaces: highlight
 - Left surfaces: highlight to base
 - Right surfaces: base to shadow
@@ -161,11 +170,13 @@ Sparse dither (75/25% mix):
 ```
 
 **When to dither:**
+
 - Gradients on large surfaces (sky, water, ground)
 - Smooth material transitions
 - When your palette is very limited
 
 **When NOT to dither:**
+
 - Small sprites (16×16 or less) — dithering at this size just looks noisy
 - Character sprites — keep clean, readable shapes
 - UI elements — clarity over texture
@@ -184,6 +195,7 @@ Without AA:          With AA:
 ```
 
 **Rules:**
+
 - Only AA curves and diagonals that aren't 2:1 or 1:1 stepping
 - Never AA at sprite edges (outline should be crisp)
 - Don't AA against transparent backgrounds — looks like dirty edges
@@ -196,22 +208,25 @@ Without AA:          With AA:
 At every resolution, eyes communicate the most emotion. Prioritize eye detail.
 
 **8×12 / 16×24 (tiny):**
+
 ```
 Happy:    Neutral:   Sad:       Angry:     Surprised:
  ▪ ▪       ● ●       ● ●       ▬ ▬        ◎ ◎
-           
+
  (dots)   (dots)    (dots)    (half-px)   (larger)
   ‿         —         ‿         ▬          ○
 (1px smile)(1px line)(1px frown)(1px angry)(1px open)
 ```
 
 At tiny sizes:
+
 - Happy = eyes are dots/small + curved mouth line below
 - Sad = eyes at same position + curved mouth above
 - Angry = eyes become horizontal lines (half-closed) + flat/frown mouth
 - Surprised = eyes become larger (2px instead of 1px) + round mouth
 
 **32×48 (medium):**
+
 - Eyes: 3-4px wide, 2-3px tall
 - Pupil: 1-2px, positioned within eye white
 - Pupil position = gaze direction (crucial for expression)
@@ -219,6 +234,7 @@ At tiny sizes:
 - Eyebrow angle communicates most emotion
 
 **Eyebrow expressions at 32×48:**
+
 ```
 Neutral:    ——  ——     (flat, level)
 Happy:      ——  ——     (slightly raised, relaxed)
@@ -232,6 +248,7 @@ Worried:   ╱╱  ╲╲     (angled up + wavy)
 ### Mouth Expressions
 
 **At 16×24 (1-2px mouth):**
+
 ```
 Happy:     ‿  (single curved pixel below center)
 Neutral:   —  (single flat pixel)
@@ -242,6 +259,7 @@ Smirk:     —‿ (flat left + curve right)
 ```
 
 **At 32×48 (3-5px mouth):**
+
 - Open mouth: dark interior (2-3px) + teeth line (1px white/light) on top or bottom
 - Smile: curved line, 3-4px wide, thicker at center
 - Frown: inverse curve
@@ -253,24 +271,28 @@ Smirk:     —‿ (flat left + curve right)
 Even at low resolutions, body posture communicates emotion:
 
 **Confident/Happy:**
+
 - Chest out (torso shifted 1px forward)
 - Shoulders level or slightly raised
 - Head up (0-1px higher)
 - Arms slightly away from body
 
 **Sad/Defeated:**
+
 - Shoulders hunched (1px inward)
 - Head down (1px lower)
 - Slight forward lean
 - Arms close to body, hanging
 
 **Angry/Aggressive:**
+
 - Wide stance (legs 1-2px further apart)
 - Leaning forward (1px)
 - Fists clenched (hands as solid blocks)
 - Head slightly lowered (looking from under brows)
 
 **Scared/Nervous:**
+
 - Pulling back (1px away from threat direction)
 - Arms close/crossed
 - Knees slightly bent (smaller silhouette)
@@ -281,11 +303,13 @@ Even at low resolutions, body posture communicates emotion:
 The most powerful animation principle, even in pixel art:
 
 **Squash** (compression — landing, anticipation, impact):
+
 - Sprite wider by 1-2px
 - Sprite shorter by 1-2px
 - Communicates weight and force
 
 **Stretch** (extension — jumping, reaching, fast movement):
+
 - Sprite narrower by 1-2px
 - Sprite taller by 1-2px
 - Communicates speed and energy
@@ -296,15 +320,15 @@ At pixel art resolutions, squash/stretch of even 1 pixel is noticeable and effec
 
 Things that trail behind primary movement:
 
-| Element | Delay | Amplitude | Decay |
-|---------|-------|-----------|-------|
-| Hair (short) | 1 frame | 1-2px | Quick (2 frames) |
-| Hair (long) | 1-2 frames | 2-4px | Slow (3-4 frames) |
-| Cape/cloak | 2 frames | 3-5px | Slow, wave motion |
-| Earrings | 1 frame | 1px | Quick |
-| Scarf | 1-2 frames | 2-3px | Medium |
-| Weapon (held) | 0 frames | Follows hand exactly | N/A |
-| Armor plates | 1 frame | 1px | Quick |
+| Element       | Delay      | Amplitude            | Decay             |
+| ------------- | ---------- | -------------------- | ----------------- |
+| Hair (short)  | 1 frame    | 1-2px                | Quick (2 frames)  |
+| Hair (long)   | 1-2 frames | 2-4px                | Slow (3-4 frames) |
+| Cape/cloak    | 2 frames   | 3-5px                | Slow, wave motion |
+| Earrings      | 1 frame    | 1px                  | Quick             |
+| Scarf         | 1-2 frames | 2-3px                | Medium            |
+| Weapon (held) | 0 frames   | Follows hand exactly | N/A               |
+| Armor plates  | 1 frame    | 1px                  | Quick             |
 
 **Implementation:** On movement frame N, secondary element shows position from frame N-1 (or N-2 for heavier items).
 
@@ -372,36 +396,44 @@ Things that trail behind primary movement:
 ## Common Mistakes
 
 ### "Pillow Shading"
+
 ❌ Shading from edges inward (dark border → light center), ignoring light direction.
 ✅ Always shade according to a consistent light source direction.
 
 ### "Banding"
+
 ❌ Lines of same-width color running parallel to edges. Looks like contour map.
 ✅ Break up bands with single-pixel irregularities. Vary shadow edge shapes.
 
 ### "Too Many Colors"
+
 ❌ Using 50+ colors because you can. Every material has its own unrelated palette.
 ✅ Build a unified palette. Reuse colors across materials where possible. Shared colors = visual cohesion.
 
 ### "Noise"
+
 ❌ Random pixels scattered for "texture." Reads as static/dirt, not detail.
 ✅ Every pixel should have intent. Texture comes from deliberate dithering patterns or meaningful details.
 
 ### "Jaggies"
+
 ❌ Unintended staircase patterns on curves and diagonals.
 ✅ Follow consistent stepping patterns. For curves: gradually change step length (1,1,2,3,3,2,1,1 not 1,2,1,2,1,2).
 
 ### "Black Outline Overuse"
+
 ❌ Thick black lines everywhere, eating up interior detail space.
 ✅ 1px max. Consider colored outlines for softer look. Skip inner outlines where contrast is sufficient.
 
 ### "Symmetry Addiction"
+
 ❌ Everything perfectly mirrored. Characters look stiff and robotic.
 ✅ Slight asymmetry is natural. Off-center hair part, one arm slightly different from other, weight shifted to one leg.
 
 ## Style Presets
 
 ### NES / 8-bit
+
 - Palette: 4 colors per sprite (hardware limit)
 - Outline: black
 - Shading: 2-tone (base + shadow)
@@ -409,6 +441,7 @@ Things that trail behind primary movement:
 - Vibe: Chunky, iconic, maximally readable
 
 ### SNES / 16-bit
+
 - Palette: 16 colors per sprite
 - Outline: colored (selective)
 - Shading: 3-4 tone with dithering
@@ -416,6 +449,7 @@ Things that trail behind primary movement:
 - Vibe: Rich, detailed, golden era RPG
 
 ### GBA
+
 - Palette: 16-256 colors
 - Outline: mix (black outer, colored inner)
 - Shading: smooth ramps, some AA
@@ -423,6 +457,7 @@ Things that trail behind primary movement:
 - Vibe: Clean, bright, polished
 
 ### Modern Indie
+
 - Palette: 16-32 colors (intentionally limited)
 - Outline: selective or none
 - Shading: hue-shifted ramps, selective dithering
@@ -430,6 +465,7 @@ Things that trail behind primary movement:
 - Vibe: Artistic, expressive, Celeste/Dead Cells style
 
 ### Chibi
+
 - Head:body ratio 1:1 or larger
 - Exaggerated eyes (30-40% of face)
 - Stubby limbs, round shapes

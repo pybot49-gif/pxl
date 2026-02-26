@@ -40,14 +40,14 @@ Each animation template defines per-frame transforms for body parts:
 
 ### Transform Properties
 
-| Property | Type | Description |
-|----------|------|-------------|
-| dx | int | Horizontal pixel offset |
-| dy | int | Vertical pixel offset |
-| flipH | bool | Horizontal flip |
-| flipV | bool | Vertical flip |
-| visible | bool | Show/hide part |
-| replace | string | Swap part sprite for this frame (e.g., open mouth) |
+| Property | Type   | Description                                        |
+| -------- | ------ | -------------------------------------------------- |
+| dx       | int    | Horizontal pixel offset                            |
+| dy       | int    | Vertical pixel offset                              |
+| flipH    | bool   | Horizontal flip                                    |
+| flipV    | bool   | Vertical flip                                      |
+| visible  | bool   | Show/hide part                                     |
+| replace  | string | Swap part sprite for this frame (e.g., open mouth) |
 
 ## Walk Cycle (6 frames)
 
@@ -86,18 +86,21 @@ Frame 5: Passing (left leg under body)
 ### Walk Cycle by Resolution
 
 **16×24 (small):**
+
 - Leg movement: ±1-2px
 - Arm movement: ±1px
 - Body bob: 0-1px
 - Hair bounce: 0px (too small to notice)
 
 **32×48 (medium):**
+
 - Leg movement: ±2-3px
 - Arm movement: ±1-2px
 - Body bob: 1px
 - Hair bounce: 1px on contact frames
 
 **64×96 (large):**
+
 - Leg movement: ±4-6px
 - Arm movement: ±2-3px
 - Body bob: 1-2px
@@ -264,16 +267,16 @@ Frame 3 (80ms): Landing
 
 For each direction, adjust the template's dx values:
 
-| Direction | dx multiplier | Notes |
-|-----------|--------------|-------|
-| front (S) | dx visible | Standard template |
-| back (N) | dx visible | Reverse arm/leg front-back |
-| left (W) | dx = forward motion | Side view — dx becomes depth |
-| right (E) | dx = -forward motion | Mirror of left |
-| front-left (SW) | dx × 0.7 | Diagonal — reduce lateral movement |
-| front-right (SE) | mirror of SW | |
-| back-left (NW) | dx × 0.7 | |
-| back-right (NE) | mirror of NW | |
+| Direction        | dx multiplier        | Notes                              |
+| ---------------- | -------------------- | ---------------------------------- |
+| front (S)        | dx visible           | Standard template                  |
+| back (N)         | dx visible           | Reverse arm/leg front-back         |
+| left (W)         | dx = forward motion  | Side view — dx becomes depth       |
+| right (E)        | dx = -forward motion | Mirror of left                     |
+| front-left (SW)  | dx × 0.7             | Diagonal — reduce lateral movement |
+| front-right (SE) | mirror of SW         |                                    |
+| back-left (NW)   | dx × 0.7             |                                    |
+| back-right (NE)  | mirror of NW         |                                    |
 
 **Diagonal views** show ~70% of the lateral movement and need slight rotation of part offsets.
 
