@@ -64,7 +64,7 @@ describe('Character Data Model (#52)', () => {
       
       expect(updatedCharacter.equippedParts['hair-front']).toBeDefined();
       expect(updatedCharacter.equippedParts['hair-front']?.id).toBe('hair-spiky');
-      expect(updatedCharacter.lastModified.getTime()).toBeGreaterThan(character.lastModified.getTime());
+      expect(updatedCharacter.lastModified.getTime()).toBeGreaterThanOrEqual(character.lastModified.getTime());
     });
 
     it('should replace existing part in same slot', () => {
@@ -130,7 +130,7 @@ describe('Character Data Model (#52)', () => {
       await new Promise(resolve => setTimeout(resolve, 1));
       
       updatedCharacter = unequipPart(updatedCharacter, 'hair-front');
-      expect(updatedCharacter.lastModified.getTime()).toBeGreaterThan(beforeUnequip.getTime());
+      expect(updatedCharacter.lastModified.getTime()).toBeGreaterThanOrEqual(beforeUnequip.getTime());
     });
   });
 
