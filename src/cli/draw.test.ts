@@ -151,11 +151,11 @@ describe('CLI draw commands (#16)', () => {
       expect(result.buffer[offset + 3]).toBe(255); // A
     });
 
-    it('should fail with invalid coordinates', () => {
+    it('should fail with invalid coordinates', async () => {
       // Create test file that exists
       const canvas = createCanvas(2, 2);
       const pngPath = resolve(testDir, 'bounds-test.png');
-      writePNG(canvas, pngPath);
+      await writePNG(canvas, pngPath);
       
       // Test out of bounds coordinates
       expect(() => {
@@ -171,10 +171,10 @@ describe('CLI draw commands (#16)', () => {
       }).toThrow();
     });
 
-    it('should fail with invalid color formats', () => {
+    it('should fail with invalid color formats', async () => {
       const canvas = createCanvas(2, 2);
       const pngPath = resolve(testDir, 'color-test.png');
-      writePNG(canvas, pngPath);
+      await writePNG(canvas, pngPath);
       
       const invalidColors = ['invalid', '#gg0000', '#ff', 'red', '255,0,0'];
       

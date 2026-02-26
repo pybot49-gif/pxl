@@ -11,12 +11,12 @@ import { setPixel, drawLine, drawRect, floodFill } from '../core/draw.js';
  */
 function parseCoordinates(coordStr: string): { x: number; y: number } {
   const match = coordStr.match(/^(\d+),(\d+)$/);
-  if (!match) {
+  if (match?.[1] === undefined || match[2] === undefined) {
     throw new Error(`Invalid coordinate format: "${coordStr}". Expected format: X,Y (e.g., 3,4)`);
   }
   
-  const x = parseInt(match[1]!, 10);
-  const y = parseInt(match[2]!, 10);
+  const x = parseInt(match[1], 10);
+  const y = parseInt(match[2], 10);
   
   if (x < 0 || y < 0) {
     throw new Error(`Invalid coordinates: x and y must be non-negative, got ${x},${y}`);
@@ -128,8 +128,8 @@ export function createRectCommand(): Command {
     .argument('<corner1>', 'First corner coordinates in X,Y format (e.g., 1,2)')
     .argument('<corner2>', 'Second corner coordinates in X,Y format (e.g., 5,8)')
     .argument('<color>', 'Rectangle color in hex format (e.g., #FF0000)')
-    .option('-f, --filled', 'Fill the rectangle (default: outlined only)')
-    .action(async (path: string, corner1: string, corner2: string, color: string, options: { filled?: boolean }) => {
+    .option('-f, --filled', 'Fill the rectangle (default: outlined only)', false)
+    .action(async (path: string, corner1: string, corner2: string, color: string, options: { filled: boolean }) => {
       try {
         if (!existsSync(path)) {
           throw new Error(`PNG file not found: ${path}`);
@@ -149,7 +149,7 @@ export function createRectCommand(): Command {
           coords1.x, coords1.y,
           coords2.x, coords2.y,
           parsedColor.r, parsedColor.g, parsedColor.b, parsedColor.a,
-          options.filled || false
+          options.filled
         );
         
         await writePNG(image, path);

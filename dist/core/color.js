@@ -1,6 +1,6 @@
 // src/core/color.ts
 function parseHex(hexString) {
-  let hex = hexString.startsWith("#") ? hexString.slice(1) : hexString;
+  const hex = hexString.startsWith("#") ? hexString.slice(1) : hexString;
   if (hex.length === 0) {
     throw new Error("Invalid hex color: empty string");
   }
@@ -9,10 +9,10 @@ function parseHex(hexString) {
   }
   let r, g, b, a = 255;
   if (hex.length === 3) {
-    const r0 = hex[0];
-    const g0 = hex[1];
-    const b0 = hex[2];
-    if (!r0 || !g0 || !b0) {
+    const r0 = hex[0] ?? "";
+    const g0 = hex[1] ?? "";
+    const b0 = hex[2] ?? "";
+    if (r0.length === 0 || g0.length === 0 || b0.length === 0) {
       throw new Error(`Invalid hex color: malformed RGB format in "${hexString}"`);
     }
     r = parseInt(r0 + r0, 16);
@@ -43,10 +43,9 @@ function toHex(color) {
   const hexB = toHex2(b);
   if (a === 255) {
     return `#${hexR}${hexG}${hexB}`;
-  } else {
-    const hexA = toHex2(a);
-    return `#${hexR}${hexG}${hexB}${hexA}`;
   }
+  const hexA = toHex2(a);
+  return `#${hexR}${hexG}${hexB}${hexA}`;
 }
 
 export { parseHex, toHex };

@@ -25,12 +25,16 @@ export function getPixel(buffer: Uint8Array, width: number, x: number, y: number
     throw new Error(`Pixel coordinates out of bounds: (${x}, ${y})`);
   }
   
-  return {
-    r: buffer[offset]!,     // Red
-    g: buffer[offset + 1]!, // Green
-    b: buffer[offset + 2]!, // Blue
-    a: buffer[offset + 3]!, // Alpha
-  };
+  const r = buffer[offset];
+  const g = buffer[offset + 1];
+  const b = buffer[offset + 2];
+  const alpha = buffer[offset + 3];
+
+  if (r === undefined || g === undefined || b === undefined || alpha === undefined) {
+    throw new Error(`Pixel coordinates out of bounds: (${x}, ${y})`);
+  }
+
+  return { r, g, b, a: alpha };
 }
 
 /**
@@ -108,7 +112,9 @@ export function drawLine(
     setPixel(buffer, width, x, y, r, g, b, a);
 
     // Check if we've reached the end point
-    if (x === x1 && y === y1) break;
+    if (x === x1 && y === y1) {
+      break;
+    }
 
     // Calculate error for next step
     const e2 = 2 * err;
@@ -117,7 +123,7 @@ export function drawLine(
       err -= dy;
       x += sx;
     }
-    
+
     if (e2 < dx) {
       err += dx;
       y += sy;
@@ -165,21 +171,15 @@ export function drawRect(
         setPixel(buffer, width, x, y, r, g, b, a);
       }
     }
+  } else if (left === right || top === bottom) {
+    // Degenerate case: line
+    drawLine(buffer, width, left, top, right, bottom, r, g, b, a);
   } else {
-    // Draw outline only
-    if (left === right) {
-      // Vertical line case (1 pixel wide)
-      drawLine(buffer, width, left, top, right, bottom, r, g, b, a);
-    } else if (top === bottom) {
-      // Horizontal line case (1 pixel tall)
-      drawLine(buffer, width, left, top, right, bottom, r, g, b, a);
-    } else {
-      // Normal rectangle - draw four edges
-      drawLine(buffer, width, left, top, right, top, r, g, b, a);       // top edge
-      drawLine(buffer, width, left, bottom, right, bottom, r, g, b, a); // bottom edge
-      drawLine(buffer, width, left, top, left, bottom, r, g, b, a);     // left edge
-      drawLine(buffer, width, right, top, right, bottom, r, g, b, a);   // right edge
-    }
+    // Normal rectangle - draw four edges
+    drawLine(buffer, width, left, top, right, top, r, g, b, a);       // top edge
+    drawLine(buffer, width, left, bottom, right, bottom, r, g, b, a); // bottom edge
+    drawLine(buffer, width, left, top, left, bottom, r, g, b, a);     // left edge
+    drawLine(buffer, width, right, top, right, bottom, r, g, b, a);   // right edge
   }
 }
 
@@ -239,7 +239,11 @@ export function floodFill(
   const stack: [number, number][] = [[startX, startY]];
   
   while (stack.length > 0) {
-    const [x, y] = stack.pop()!;
+    const item = stack.pop();
+    if (item === undefined) {
+      break;
+    }
+    const [x, y] = item;
     
     // Check bounds and if pixel needs to be filled
     if (!isInBounds(x, y, width, height)) {

@@ -4,16 +4,14 @@ function getPixel(buffer, width, x, y) {
   if (offset + 3 >= buffer.length) {
     throw new Error(`Pixel coordinates out of bounds: (${x}, ${y})`);
   }
-  return {
-    r: buffer[offset],
-    // Red
-    g: buffer[offset + 1],
-    // Green
-    b: buffer[offset + 2],
-    // Blue
-    a: buffer[offset + 3]
-    // Alpha
-  };
+  const r = buffer[offset];
+  const g = buffer[offset + 1];
+  const b = buffer[offset + 2];
+  const alpha = buffer[offset + 3];
+  if (r === void 0 || g === void 0 || b === void 0 || alpha === void 0) {
+    throw new Error(`Pixel coordinates out of bounds: (${x}, ${y})`);
+  }
+  return { r, g, b, a: alpha };
 }
 function setPixel(buffer, width, x, y, r, g, b, a) {
   const offset = (y * width + x) * 4;
@@ -35,7 +33,9 @@ function drawLine(buffer, width, x0, y0, x1, y1, r, g, b, a) {
   let y = y0;
   while (true) {
     setPixel(buffer, width, x, y, r, g, b, a);
-    if (x === x1 && y === y1) break;
+    if (x === x1 && y === y1) {
+      break;
+    }
     const e2 = 2 * err;
     if (e2 > -dy) {
       err -= dy;
@@ -58,17 +58,13 @@ function drawRect(buffer, width, x1, y1, x2, y2, r, g, b, a, filled) {
         setPixel(buffer, width, x, y, r, g, b, a);
       }
     }
+  } else if (left === right || top === bottom) {
+    drawLine(buffer, width, left, top, right, bottom, r, g, b, a);
   } else {
-    if (left === right) {
-      drawLine(buffer, width, left, top, right, bottom, r, g, b, a);
-    } else if (top === bottom) {
-      drawLine(buffer, width, left, top, right, bottom, r, g, b, a);
-    } else {
-      drawLine(buffer, width, left, top, right, top, r, g, b, a);
-      drawLine(buffer, width, left, bottom, right, bottom, r, g, b, a);
-      drawLine(buffer, width, left, top, left, bottom, r, g, b, a);
-      drawLine(buffer, width, right, top, right, bottom, r, g, b, a);
-    }
+    drawLine(buffer, width, left, top, right, top, r, g, b, a);
+    drawLine(buffer, width, left, bottom, right, bottom, r, g, b, a);
+    drawLine(buffer, width, left, top, left, bottom, r, g, b, a);
+    drawLine(buffer, width, right, top, right, bottom, r, g, b, a);
   }
 }
 function colorsEqual(c1, c2) {
@@ -89,7 +85,11 @@ function floodFill(buffer, width, startX, startY, r, g, b, a) {
   }
   const stack = [[startX, startY]];
   while (stack.length > 0) {
-    const [x, y] = stack.pop();
+    const item = stack.pop();
+    if (item === void 0) {
+      break;
+    }
+    const [x, y] = item;
     if (!isInBounds(x, y, width, height)) {
       continue;
     }

@@ -11,12 +11,12 @@ import { writePNG, readPNG } from '../io/png.js';
  */
 function parseSize(sizeStr: string): { width: number; height: number } {
   const match = sizeStr.match(/^(\d+)x(\d+)$/);
-  if (!match) {
+  if (match?.[1] === undefined || match[2] === undefined) {
     throw new Error(`Invalid size format: "${sizeStr}". Expected format: WIDTHxHEIGHT (e.g., 8x6)`);
   }
   
-  const width = parseInt(match[1]!, 10);
-  const height = parseInt(match[2]!, 10);
+  const width = parseInt(match[1], 10);
+  const height = parseInt(match[2], 10);
   
   if (width <= 0 || height <= 0) {
     throw new Error(`Invalid dimensions: width and height must be positive numbers, got ${width}x${height}`);
@@ -78,7 +78,8 @@ export function createInfoCommand(): Command {
         let nonTransparentCount = 0;
         for (let i = 3; i < image.buffer.length; i += 4) {
           // Check alpha channel (every 4th byte starting at index 3)
-          if (image.buffer[i]! > 0) {
+          const alpha = image.buffer[i];
+          if (alpha !== undefined && alpha > 0) {
             nonTransparentCount++;
           }
         }

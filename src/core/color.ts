@@ -18,7 +18,7 @@ export interface Color {
  */
 export function parseHex(hexString: string): Color {
   // Remove # prefix if present
-  let hex = hexString.startsWith('#') ? hexString.slice(1) : hexString;
+  const hex = hexString.startsWith('#') ? hexString.slice(1) : hexString;
   
   // Validate hex string is not empty
   if (hex.length === 0) {
@@ -35,10 +35,10 @@ export function parseHex(hexString: string): Color {
   
   if (hex.length === 3) {
     // #RGB format - expand each digit
-    const r0 = hex[0];
-    const g0 = hex[1];
-    const b0 = hex[2];
-    if (!r0 || !g0 || !b0) {
+    const r0 = hex[0] ?? '';
+    const g0 = hex[1] ?? '';
+    const b0 = hex[2] ?? '';
+    if (r0.length === 0 || g0.length === 0 || b0.length === 0) {
       throw new Error(`Invalid hex color: malformed RGB format in "${hexString}"`);
     }
     r = parseInt(r0 + r0, 16);
@@ -87,9 +87,8 @@ export function toHex(color: Color): string {
   if (a === 255) {
     // Opaque color - use 6-digit format
     return `#${hexR}${hexG}${hexB}`;
-  } else {
-    // Semi-transparent color - use 8-digit format with alpha
-    const hexA = toHex2(a);
-    return `#${hexR}${hexG}${hexB}${hexA}`;
   }
+  // Semi-transparent color - use 8-digit format with alpha
+  const hexA = toHex2(a);
+  return `#${hexR}${hexG}${hexB}${hexA}`;
 }

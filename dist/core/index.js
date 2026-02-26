@@ -15,16 +15,14 @@ function getPixel(buffer, width, x, y) {
   if (offset + 3 >= buffer.length) {
     throw new Error(`Pixel coordinates out of bounds: (${x}, ${y})`);
   }
-  return {
-    r: buffer[offset],
-    // Red
-    g: buffer[offset + 1],
-    // Green
-    b: buffer[offset + 2],
-    // Blue
-    a: buffer[offset + 3]
-    // Alpha
-  };
+  const r = buffer[offset];
+  const g = buffer[offset + 1];
+  const b = buffer[offset + 2];
+  const alpha = buffer[offset + 3];
+  if (r === void 0 || g === void 0 || b === void 0 || alpha === void 0) {
+    throw new Error(`Pixel coordinates out of bounds: (${x}, ${y})`);
+  }
+  return { r, g, b, a: alpha };
 }
 function setPixel(buffer, width, x, y, r, g, b, a) {
   const offset = (y * width + x) * 4;
@@ -46,7 +44,9 @@ function drawLine(buffer, width, x0, y0, x1, y1, r, g, b, a) {
   let y = y0;
   while (true) {
     setPixel(buffer, width, x, y, r, g, b, a);
-    if (x === x1 && y === y1) break;
+    if (x === x1 && y === y1) {
+      break;
+    }
     const e2 = 2 * err;
     if (e2 > -dy) {
       err -= dy;
@@ -69,17 +69,13 @@ function drawRect(buffer, width, x1, y1, x2, y2, r, g, b, a, filled) {
         setPixel(buffer, width, x, y, r, g, b, a);
       }
     }
+  } else if (left === right || top === bottom) {
+    drawLine(buffer, width, left, top, right, bottom, r, g, b, a);
   } else {
-    if (left === right) {
-      drawLine(buffer, width, left, top, right, bottom, r, g, b, a);
-    } else if (top === bottom) {
-      drawLine(buffer, width, left, top, right, bottom, r, g, b, a);
-    } else {
-      drawLine(buffer, width, left, top, right, top, r, g, b, a);
-      drawLine(buffer, width, left, bottom, right, bottom, r, g, b, a);
-      drawLine(buffer, width, left, top, left, bottom, r, g, b, a);
-      drawLine(buffer, width, right, top, right, bottom, r, g, b, a);
-    }
+    drawLine(buffer, width, left, top, right, top, r, g, b, a);
+    drawLine(buffer, width, left, bottom, right, bottom, r, g, b, a);
+    drawLine(buffer, width, left, top, left, bottom, r, g, b, a);
+    drawLine(buffer, width, right, top, right, bottom, r, g, b, a);
   }
 }
 function colorsEqual(c1, c2) {
@@ -100,7 +96,11 @@ function floodFill(buffer, width, startX, startY, r, g, b, a) {
   }
   const stack = [[startX, startY]];
   while (stack.length > 0) {
-    const [x, y] = stack.pop();
+    const item = stack.pop();
+    if (item === void 0) {
+      break;
+    }
+    const [x, y] = item;
     if (!isInBounds(x, y, width, height)) {
       continue;
     }
@@ -118,7 +118,7 @@ function floodFill(buffer, width, startX, startY, r, g, b, a) {
 
 // src/core/color.ts
 function parseHex(hexString) {
-  let hex = hexString.startsWith("#") ? hexString.slice(1) : hexString;
+  const hex = hexString.startsWith("#") ? hexString.slice(1) : hexString;
   if (hex.length === 0) {
     throw new Error("Invalid hex color: empty string");
   }
@@ -127,10 +127,10 @@ function parseHex(hexString) {
   }
   let r, g, b, a = 255;
   if (hex.length === 3) {
-    const r0 = hex[0];
-    const g0 = hex[1];
-    const b0 = hex[2];
-    if (!r0 || !g0 || !b0) {
+    const r0 = hex[0] ?? "";
+    const g0 = hex[1] ?? "";
+    const b0 = hex[2] ?? "";
+    if (r0.length === 0 || g0.length === 0 || b0.length === 0) {
       throw new Error(`Invalid hex color: malformed RGB format in "${hexString}"`);
     }
     r = parseInt(r0 + r0, 16);
@@ -161,10 +161,9 @@ function toHex(color) {
   const hexB = toHex2(b);
   if (a === 255) {
     return `#${hexR}${hexG}${hexB}`;
-  } else {
-    const hexA = toHex2(a);
-    return `#${hexR}${hexG}${hexB}${hexA}`;
   }
+  const hexA = toHex2(a);
+  return `#${hexR}${hexG}${hexB}${hexA}`;
 }
 
 export { createCanvas, drawLine, drawRect, floodFill, getPixel, parseHex, setPixel, toHex };

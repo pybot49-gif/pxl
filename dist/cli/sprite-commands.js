@@ -72,7 +72,7 @@ async function writePNG(imageData, path) {
 // src/cli/sprite-commands.ts
 function parseSize(sizeStr) {
   const match = sizeStr.match(/^(\d+)x(\d+)$/);
-  if (!match) {
+  if (match?.[1] === void 0 || match[2] === void 0) {
     throw new Error(`Invalid size format: "${sizeStr}". Expected format: WIDTHxHEIGHT (e.g., 8x6)`);
   }
   const width = parseInt(match[1], 10);
@@ -107,7 +107,8 @@ function createInfoCommand() {
       const image = await readPNG(path);
       let nonTransparentCount = 0;
       for (let i = 3; i < image.buffer.length; i += 4) {
-        if (image.buffer[i] > 0) {
+        const alpha = image.buffer[i];
+        if (alpha !== void 0 && alpha > 0) {
           nonTransparentCount++;
         }
       }

@@ -18,7 +18,10 @@ export default [
       },
       globals: {
         Buffer: 'readonly',
+        console: 'readonly',
         process: 'readonly',
+        setTimeout: 'readonly',
+        clearTimeout: 'readonly',
         __dirname: 'readonly',
         __filename: 'readonly',
         exports: 'writable',
@@ -45,7 +48,7 @@ export default [
       '@typescript-eslint/await-thenable': 'error',
 
       // General rules
-      'no-console': 'warn',
+      'no-console': 'warn', // overridden for CLI files below
       'no-debugger': 'error',
       'no-duplicate-imports': 'error',
       'prefer-const': 'error',
@@ -60,6 +63,18 @@ export default [
       'no-lonely-if': 'error',
       'no-unneeded-ternary': 'error',
       'prefer-arrow-callback': 'error',
+    },
+  },
+  {
+    files: ['src/cli/**/*.ts'],
+    rules: {
+      'no-console': 'off',
+    },
+  },
+  {
+    files: ['**/*.test.ts'],
+    rules: {
+      'no-console': 'off',
     },
   },
 ];
