@@ -2,8 +2,9 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { resolve } from 'path';
 import { existsSync, mkdirSync, rmSync } from 'fs';
 import { execSync } from 'child_process';
-import { readPNG, writePNG } from '../io/png.js';
+import { readPNG, writePNG, readLayeredSprite, writeLayeredSprite } from '../io/png.js';
 import { createCanvas } from '../core/canvas.js';
+import { createLayeredCanvas } from '../core/layer.js';
 import { getPixel, drawRect, drawLine, setPixel } from '../core/draw.js';
 import { TEST_WORKSPACE } from '../../test/setup.js';
 
@@ -675,6 +676,124 @@ describe('CLI draw commands (#16)', () => {
       expect(getPixel(result.buffer, result.width, 1, 1)).toEqual({ r: 0, g: 255, b: 0, a: 255 }); // right
       expect(getPixel(result.buffer, result.width, 0, 0)).toEqual({ r: 0, g: 255, b: 0, a: 255 }); // above
       expect(getPixel(result.buffer, result.width, 0, 2)).toEqual({ r: 0, g: 255, b: 0, a: 255 }); // below
+    });
+  });
+
+  describe('pxl draw with --layer flag (#34)', () => {
+    it('should draw on specified layer', async () => {
+      // Create a layered sprite with 2 layers
+      const canvas = createLayeredCanvas(4, 4);
+      
+      // Add a second layer
+      const layer2Buffer = new Uint8Array(4 * 4 * 4);
+      canvas.layers.push({
+        name: 'Top Layer',
+        buffer: layer2Buffer,
+        opacity: 255,
+        visible: true,
+        blend: 'normal',
+      });
+      
+      const spritePath = resolve(testDir, 'layered-sprite');
+      await writeLayeredSprite(spritePath, canvas);
+      
+      // Draw on the second layer
+      const command = `node "${pxlPath}" draw pixel "${spritePath}" 1,1 "#FF0000" --layer "Top Layer"`;
+      execSync(command, { cwd: testDir });
+      
+      // Read back and verify
+      const readCanvas = await readLayeredSprite(spritePath);
+      
+      // First layer should be unchanged (all transparent)
+      for (let i = 0; i < readCanvas.layers[0].buffer.length; i++) {
+        expect(readCanvas.layers[0].buffer[i]).toBe(0);
+      }
+      
+      // Second layer should have red pixel at (1,1)
+      expect(getPixel(readCanvas.layers[1].buffer, 4, 1, 1)).toEqual({ r: 255, g: 0, b: 0, a: 255 });
+      
+      // Other pixels in second layer should be transparent
+      expect(getPixel(readCanvas.layers[1].buffer, 4, 0, 0)).toEqual({ r: 0, g: 0, b: 0, a: 0 });
+      expect(getPixel(readCanvas.layers[1].buffer, 4, 2, 2)).toEqual({ r: 0, g: 0, b: 0, a: 0 });
+    });
+
+    it('should default to first layer when no --layer specified', async () => {
+      // Create a layered sprite
+      const canvas = createLayeredCanvas(3, 3);
+      const spritePath = resolve(testDir, 'default-layer');
+      await writeLayeredSprite(spritePath, canvas);
+      
+      // Draw without --layer flag
+      const command = `node "${pxlPath}" draw pixel "${spritePath}" 2,2 "#00FF00"`;
+      execSync(command, { cwd: testDir });
+      
+      // Read back and verify
+      const readCanvas = await readLayeredSprite(spritePath);
+      
+      // First layer should have the green pixel
+      expect(getPixel(readCanvas.layers[0].buffer, 3, 2, 2)).toEqual({ r: 0, g: 255, b: 0, a: 255 });
+    });
+
+    it('should fail for non-existent layer', async () => {
+      const canvas = createLayeredCanvas(2, 2);
+      const spritePath = resolve(testDir, 'fail-layer');
+      await writeLayeredSprite(spritePath, canvas);
+      
+      // Try to draw on non-existent layer
+      const command = `node "${pxlPath}" draw pixel "${spritePath}" 0,0 "#FF0000" --layer "NonExistent"`;
+      
+      expect(() => {
+        execSync(command, { cwd: testDir, stdio: 'pipe' });
+      }).toThrow();
+    });
+
+    it('should work with line drawing on layers', async () => {
+      const canvas = createLayeredCanvas(5, 5);
+      
+      // Add a second layer named "Lines"
+      const linesBuffer = new Uint8Array(5 * 5 * 4);
+      canvas.layers.push({
+        name: 'Lines',
+        buffer: linesBuffer,
+        opacity: 255,
+        visible: true,
+        blend: 'normal',
+      });
+      
+      const spritePath = resolve(testDir, 'lines-layer');
+      await writeLayeredSprite(spritePath, canvas);
+      
+      // Draw a line on the "Lines" layer
+      const command = `node "${pxlPath}" draw line "${spritePath}" 0,0 4,4 "#0000FF" --layer "Lines"`;
+      execSync(command, { cwd: testDir });
+      
+      // Read back and verify
+      const readCanvas = await readLayeredSprite(spritePath);
+      
+      // First layer should be unchanged
+      for (let i = 0; i < readCanvas.layers[0].buffer.length; i++) {
+        expect(readCanvas.layers[0].buffer[i]).toBe(0);
+      }
+      
+      // Lines layer should have diagonal line
+      expect(getPixel(readCanvas.layers[1].buffer, 5, 0, 0)).toEqual({ r: 0, g: 0, b: 255, a: 255 });
+      expect(getPixel(readCanvas.layers[1].buffer, 5, 2, 2)).toEqual({ r: 0, g: 0, b: 255, a: 255 });
+      expect(getPixel(readCanvas.layers[1].buffer, 5, 4, 4)).toEqual({ r: 0, g: 0, b: 255, a: 255 });
+    });
+
+    it('should fall back to PNG mode for regular PNG files', async () => {
+      // Create a regular PNG file (not layered)
+      const canvas = createCanvas(3, 3);
+      const pngPath = resolve(testDir, 'regular.png');
+      await writePNG(canvas, pngPath);
+      
+      // Draw on it with --layer flag (should be ignored)
+      const command = `node "${pxlPath}" draw pixel "${pngPath}" 1,1 "#FF0000" --layer "SomeLayer"`;
+      execSync(command, { cwd: testDir });
+      
+      // Should work normally on the PNG
+      const result = await readPNG(pngPath);
+      expect(getPixel(result.buffer, 3, 1, 1)).toEqual({ r: 255, g: 0, b: 0, a: 255 });
     });
   });
 });
