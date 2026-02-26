@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { resolve } from 'path';
-import { existsSync, mkdirSync, rmSync } from 'fs';
-import { readPNG, writePNG } from './png.js';
+import { existsSync, mkdirSync, rmSync, readdirSync } from 'fs';
+import { readPNG, writePNG, readLayeredSprite, writeLayeredSprite } from './png.js';
+import { createLayeredCanvas } from '../core/layer.js';
 import { TEST_WORKSPACE } from '../../test/setup.js';
 
 describe('PNG I/O', () => {
@@ -173,6 +174,189 @@ describe('PNG I/O', () => {
           filePath
         )
       ).rejects.toThrow();
+    });
+  });
+
+  describe('readLayeredSprite (#31)', () => {
+    it('should read layered sprite from meta.json and layer PNGs', async () => {
+      // First create a layered sprite to read
+      const canvas = createLayeredCanvas(2, 2);
+      
+      // Add a second layer
+      const layer2Buffer = new Uint8Array(16); // 2x2x4 = 16 bytes
+      layer2Buffer[0] = 255; // Red pixel at 0,0
+      layer2Buffer[1] = 0;
+      layer2Buffer[2] = 0;
+      layer2Buffer[3] = 255;
+      
+      canvas.layers.push({
+        name: 'Top Layer',
+        buffer: layer2Buffer,
+        opacity: 128,
+        visible: true,
+        blend: 'overlay',
+      });
+      
+      // Blue pixel in bottom layer
+      canvas.layers[0].buffer[0] = 0;
+      canvas.layers[0].buffer[1] = 0;
+      canvas.layers[0].buffer[2] = 255;
+      canvas.layers[0].buffer[3] = 255;
+      
+      const basePath = resolve(testDir, 'test-sprite');
+      await writeLayeredSprite(basePath, canvas);
+      
+      // Now read it back
+      const readCanvas = await readLayeredSprite(basePath);
+      
+      expect(readCanvas.width).toBe(2);
+      expect(readCanvas.height).toBe(2);
+      expect(readCanvas.layers).toHaveLength(2);
+      
+      expect(readCanvas.layers[0].name).toBe('Layer 0');
+      expect(readCanvas.layers[0].opacity).toBe(255);
+      expect(readCanvas.layers[0].visible).toBe(true);
+      expect(readCanvas.layers[0].blend).toBe('normal');
+      
+      expect(readCanvas.layers[1].name).toBe('Top Layer');
+      expect(readCanvas.layers[1].opacity).toBe(128);
+      expect(readCanvas.layers[1].visible).toBe(true);
+      expect(readCanvas.layers[1].blend).toBe('overlay');
+      
+      // Check pixel data
+      expect(readCanvas.layers[0].buffer[0]).toBe(0);   // Blue pixel
+      expect(readCanvas.layers[0].buffer[1]).toBe(0);
+      expect(readCanvas.layers[0].buffer[2]).toBe(255);
+      expect(readCanvas.layers[0].buffer[3]).toBe(255);
+      
+      expect(readCanvas.layers[1].buffer[0]).toBe(255); // Red pixel
+      expect(readCanvas.layers[1].buffer[1]).toBe(0);
+      expect(readCanvas.layers[1].buffer[2]).toBe(0);
+      expect(readCanvas.layers[1].buffer[3]).toBe(255);
+    });
+
+    it('should handle single layer sprites', async () => {
+      const canvas = createLayeredCanvas(1, 1);
+      
+      // Set a red pixel
+      canvas.layers[0].buffer[0] = 255;
+      canvas.layers[0].buffer[1] = 0;
+      canvas.layers[0].buffer[2] = 0;
+      canvas.layers[0].buffer[3] = 255;
+      
+      const basePath = resolve(testDir, 'single-layer');
+      await writeLayeredSprite(basePath, canvas);
+      
+      const readCanvas = await readLayeredSprite(basePath);
+      
+      expect(readCanvas.width).toBe(1);
+      expect(readCanvas.height).toBe(1);
+      expect(readCanvas.layers).toHaveLength(1);
+      expect(readCanvas.layers[0].name).toBe('Layer 0');
+      expect(readCanvas.layers[0].buffer[0]).toBe(255);
+    });
+
+    it('should throw error for missing meta file', async () => {
+      const basePath = resolve(testDir, 'nonexistent');
+      
+      await expect(readLayeredSprite(basePath)).rejects.toThrow(/Failed to read layered sprite/);
+    });
+  });
+
+  describe('writeLayeredSprite (#31)', () => {
+    it('should write meta.json and per-layer PNGs', async () => {
+      const canvas = createLayeredCanvas(3, 3);
+      
+      // Add a second layer
+      const layer2Buffer = new Uint8Array(36); // 3x3x4 = 36 bytes
+      canvas.layers.push({
+        name: 'Overlay',
+        buffer: layer2Buffer,
+        opacity: 200,
+        visible: false, // Test invisible layer
+        blend: 'multiply',
+      });
+      
+      const basePath = resolve(testDir, 'write-test');
+      await writeLayeredSprite(basePath, canvas);
+      
+      // Check that files were created
+      const expectedFiles = [
+        'write-test.meta.json',
+        'write-test.layer-0.png',
+        'write-test.layer-1.png',
+        'write-test.png', // Flattened
+      ];
+      
+      for (const filename of expectedFiles) {
+        const filePath = resolve(testDir, filename);
+        expect(existsSync(filePath)).toBe(true);
+      }
+      
+      // Check directory contents
+      const files = readdirSync(testDir);
+      expectedFiles.forEach(file => {
+        expect(files).toContain(file);
+      });
+    });
+
+    it('should write flattened composite PNG', async () => {
+      const canvas = createLayeredCanvas(2, 2);
+      
+      // Bottom layer: blue
+      canvas.layers[0].buffer[0] = 0;
+      canvas.layers[0].buffer[1] = 0;
+      canvas.layers[0].buffer[2] = 255;
+      canvas.layers[0].buffer[3] = 255;
+      
+      // Add transparent top layer (should not affect composite)
+      const layer2Buffer = new Uint8Array(16);
+      canvas.layers.push({
+        name: 'Transparent',
+        buffer: layer2Buffer,
+        opacity: 255,
+        visible: true,
+        blend: 'normal',
+      });
+      
+      const basePath = resolve(testDir, 'flattened-test');
+      await writeLayeredSprite(basePath, canvas);
+      
+      // Read the flattened PNG
+      const flattenedPath = resolve(testDir, 'flattened-test.png');
+      const flattened = await readPNG(flattenedPath);
+      
+      // Should be the blue pixel
+      expect(flattened.buffer[0]).toBe(0);
+      expect(flattened.buffer[1]).toBe(0);
+      expect(flattened.buffer[2]).toBe(255);
+      expect(flattened.buffer[3]).toBe(255);
+      
+      // Other pixels should be transparent
+      for (let i = 4; i < 16; i += 4) {
+        expect(flattened.buffer[i + 3]).toBe(0); // Alpha should be 0
+      }
+    });
+
+    it('should preserve layer metadata', async () => {
+      const canvas = createLayeredCanvas(4, 4);
+      
+      // Modify default layer
+      canvas.layers[0].name = 'Custom Base';
+      canvas.layers[0].opacity = 200;
+      canvas.layers[0].visible = false;
+      canvas.layers[0].blend = 'screen';
+      
+      const basePath = resolve(testDir, 'metadata-test');
+      await writeLayeredSprite(basePath, canvas);
+      
+      // Read back and verify
+      const readCanvas = await readLayeredSprite(basePath);
+      
+      expect(readCanvas.layers[0].name).toBe('Custom Base');
+      expect(readCanvas.layers[0].opacity).toBe(200);
+      expect(readCanvas.layers[0].visible).toBe(false);
+      expect(readCanvas.layers[0].blend).toBe('screen');
     });
   });
 });

@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import { existsSync } from 'fs';
-import { readPNG, writePNG } from '../io/png.js';
+import { readPNG, writePNG, readLayeredSprite, writeLayeredSprite } from '../io/png.js';
 import { parseHex } from '../core/color.js';
 import { setPixel, drawLine, drawRect, floodFill, drawCircle, replaceColor } from '../core/draw.js';
 import { addOutline } from '../core/outline.js';
@@ -36,40 +36,100 @@ function validateBounds(x: number, y: number, width: number, height: number): vo
 }
 
 /**
+ * Get the target layer buffer for drawing operations
+ * Handles both layered sprites and regular PNG files
+ * @param path File path (with or without extension)
+ * @param layerName Optional layer name to target
+ * @returns Object with buffer, dimensions, and save function
+ */
+async function getDrawTarget(path: string, layerName?: string): Promise<{
+  buffer: Uint8Array;
+  width: number;
+  height: number;
+  save: () => Promise<void>;
+}> {
+  // Remove .png extension if present for consistent path handling
+  const basePath = path.endsWith('.png') ? path.slice(0, -4) : path;
+  const pngPath = `${basePath}.png`;
+  const metaPath = `${basePath}.meta.json`;
+
+  // Check if it's a layered sprite
+  if (existsSync(metaPath)) {
+    // Handle layered sprite
+    const canvas = await readLayeredSprite(basePath);
+    
+    let targetLayerIndex = 0; // Default to first layer
+    
+    if (layerName) {
+      // Find the specified layer
+      targetLayerIndex = canvas.layers.findIndex(layer => layer.name === layerName);
+      if (targetLayerIndex === -1) {
+        throw new Error(`Layer "${layerName}" not found. Available layers: ${canvas.layers.map(l => l.name).join(', ')}`);
+      }
+    }
+
+    const targetLayer = canvas.layers[targetLayerIndex];
+    if (!targetLayer) {
+      throw new Error(`Layer ${targetLayerIndex} not found`);
+    }
+
+    return {
+      buffer: targetLayer.buffer,
+      width: canvas.width,
+      height: canvas.height,
+      save: () => writeLayeredSprite(basePath, canvas),
+    };
+  } else if (existsSync(pngPath)) {
+    // Handle regular PNG file
+    if (layerName !== undefined && layerName.length > 0) {
+      console.warn(`Warning: --layer "${layerName}" ignored for regular PNG file`);
+    }
+
+    const image = await readPNG(pngPath);
+    
+    return {
+      buffer: image.buffer,
+      width: image.width,
+      height: image.height,
+      save: () => writePNG(image, pngPath),
+    };
+  } else {
+    throw new Error(`Sprite or PNG file not found: ${pngPath}`);
+  }
+}
+
+/**
  * Draw pixel command: sets a single pixel to the specified color
  */
 export function createPixelCommand(): Command {
   return new Command('pixel')
     .description('Draw a single pixel at specified coordinates')
-    .argument('<path>', 'PNG file path to modify')
+    .argument('<path>', 'Sprite path or PNG file path to modify')
     .argument('<coordinates>', 'Pixel coordinates in X,Y format (e.g., 3,4)')
     .argument('<color>', 'Pixel color in hex format (e.g., #FF0000, #f00, #FF000080)')
-    .action(async (path: string, coordinates: string, color: string) => {
+    .option('--layer <name>', 'Layer name to draw on (for layered sprites)')
+    .action(async (path: string, coordinates: string, color: string, options: { layer?: string }) => {
       try {
-        // Check if file exists
-        if (!existsSync(path)) {
-          throw new Error(`PNG file not found: ${path}`);
-        }
-        
         // Parse coordinates
         const { x, y } = parseCoordinates(coordinates);
         
         // Parse color
         const parsedColor = parseHex(color);
         
-        // Read PNG
-        const image = await readPNG(path);
+        // Get target for drawing
+        const target = await getDrawTarget(path, options.layer);
         
         // Validate bounds
-        validateBounds(x, y, image.width, image.height);
+        validateBounds(x, y, target.width, target.height);
         
         // Set pixel
-        setPixel(image.buffer, image.width, x, y, parsedColor.r, parsedColor.g, parsedColor.b, parsedColor.a);
+        setPixel(target.buffer, target.width, x, y, parsedColor.r, parsedColor.g, parsedColor.b, parsedColor.a);
         
-        // Write back to PNG
-        await writePNG(image, path);
+        // Save changes
+        await target.save();
         
-        console.log(`Set pixel at (${x},${y}) to ${color} in ${path}`);
+        const layerInfo = options.layer ? ` on layer "${options.layer}"` : '';
+        console.log(`Set pixel at (${x},${y}) to ${color}${layerInfo} in ${path}`);
       } catch (error) {
         console.error('Error drawing pixel:', error instanceof Error ? error.message : String(error));
         process.exit(1);
@@ -83,35 +143,34 @@ export function createPixelCommand(): Command {
 export function createLineCommand(): Command {
   return new Command('line')
     .description('Draw a line between two points')
-    .argument('<path>', 'PNG file path to modify')
+    .argument('<path>', 'Sprite path or PNG file path to modify')
     .argument('<start>', 'Start coordinates in X,Y format (e.g., 1,2)')
     .argument('<end>', 'End coordinates in X,Y format (e.g., 5,8)')
     .argument('<color>', 'Line color in hex format (e.g., #FF0000)')
-    .action(async (path: string, start: string, end: string, color: string) => {
+    .option('--layer <name>', 'Layer name to draw on (for layered sprites)')
+    .action(async (path: string, start: string, end: string, color: string, options: { layer?: string }) => {
       try {
-        if (!existsSync(path)) {
-          throw new Error(`PNG file not found: ${path}`);
-        }
-        
         const startCoords = parseCoordinates(start);
         const endCoords = parseCoordinates(end);
         const parsedColor = parseHex(color);
         
-        const image = await readPNG(path);
+        // Get target for drawing
+        const target = await getDrawTarget(path, options.layer);
         
-        validateBounds(startCoords.x, startCoords.y, image.width, image.height);
-        validateBounds(endCoords.x, endCoords.y, image.width, image.height);
+        validateBounds(startCoords.x, startCoords.y, target.width, target.height);
+        validateBounds(endCoords.x, endCoords.y, target.width, target.height);
         
         drawLine(
-          image.buffer, image.width,
+          target.buffer, target.width,
           startCoords.x, startCoords.y,
           endCoords.x, endCoords.y,
           parsedColor.r, parsedColor.g, parsedColor.b, parsedColor.a
         );
         
-        await writePNG(image, path);
+        await target.save();
         
-        console.log(`Drew line from (${startCoords.x},${startCoords.y}) to (${endCoords.x},${endCoords.y}) with color ${color} in ${path}`);
+        const layerInfo = options.layer ? ` on layer "${options.layer}"` : '';
+        console.log(`Drew line from (${startCoords.x},${startCoords.y}) to (${endCoords.x},${endCoords.y}) with color ${color}${layerInfo} in ${path}`);
       } catch (error) {
         console.error('Error drawing line:', error instanceof Error ? error.message : String(error));
         process.exit(1);

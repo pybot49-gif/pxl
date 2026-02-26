@@ -3,6 +3,7 @@ import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import { addSpriteCommands } from './sprite-commands.js';
 import { addDrawCommands } from './draw-commands.js';
+import { addLayerCommands } from './layer-commands.js';
 
 /**
  * Read package.json to get version information
@@ -32,6 +33,7 @@ function createProgram(): Command {
   // Add subcommands
   addSpriteCommands(program);
   addDrawCommands(program);
+  addLayerCommands(program);
 
   return program;
 }
