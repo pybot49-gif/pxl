@@ -8,6 +8,7 @@ import { createHairPart, createEyePart, createTorsoPart, type PartSlot } from '.
 import { createBaseBody } from '../char/body.js';
 import { assembleCharacter } from '../char/assembly.js';
 import { COLOR_PRESETS, type Color } from '../char/color.js';
+import { parseViewDirections } from '../char/view.js';
 
 /**
  * Get the characters directory path
@@ -324,36 +325,20 @@ export function createCharColorCommand(): Command {
  */
 export function createCharRenderCommand(): Command {
   return new Command('render')
-    .description('Render character to PNG')
+    .description('Render character to PNG(s)')
     .argument('<name>', 'Character name')
     .option('--output <path>', 'Output PNG path (default: chars/<name>/render.png)')
-    .action(async (name: string, options: { output?: string }) => {
+    .option('--views <views>', 'View directions to render: "all", "front,back,left", etc. (default: single front view)')
+    .action(async (name: string, options: { output?: string; views?: string }) => {
       try {
         const character = loadCharacterFromDisk(name);
         
-        // Create base body
-        const baseBody = createBaseBody(character.build, character.height);
-        
-        // Assemble character
-        const assembled = assembleCharacter(baseBody, character.equippedParts, character.colorScheme);
-        
-        // Determine output path
-        const outputPath = options.output ?? join(getCharDir(name), 'render.png');
-        
-        // Ensure output directory exists
-        mkdirSync(dirname(outputPath), { recursive: true });
-        
-        // Write PNG
-        await writePNG({
-          buffer: assembled.buffer,
-          width: assembled.width,
-          height: assembled.height,
-        }, outputPath);
-        
-        if (options.output !== undefined && options.output !== '') {
-          console.log(`Rendered character to ${outputPath}`);
+        // Handle multi-view rendering
+        if (options.views !== undefined && options.views !== '') {
+          await renderMultiView(character, options.views);
         } else {
-          console.log(`Rendered character: ${name}`);
+          // Single view rendering (backward compatibility)
+          await renderSingleView(character, options.output);
         }
       } catch (error) {
         console.error('Error rendering character:', error instanceof Error ? error.message : String(error));
@@ -436,6 +421,88 @@ export function createCharExportCommand(): Command {
         process.exit(1);
       }
     });
+}
+
+/**
+ * Render character in multiple view directions
+ */
+async function renderMultiView(character: Character, viewsString: string): Promise<void> {
+  const directions = parseViewDirections(viewsString);
+  
+  // Create renders directory
+  const rendersDir = join(getCharDir(character.id), 'renders');
+  mkdirSync(rendersDir, { recursive: true });
+  
+  // Render each view direction
+  for (const direction of directions) {
+    // Create base body for this direction
+    const baseBody = createBaseBody(character.build, character.height, direction);
+    
+    // Create parts for this direction
+    const directionalParts: Record<string, any> = {}; // eslint-disable-line @typescript-eslint/no-explicit-any
+    for (const [slot, part] of Object.entries(character.equippedParts)) {
+      if (part !== undefined) {
+        // Create new part with the same style but different direction
+        const partSlot = slot as PartSlot;
+        if (partSlot === 'hair-front' || partSlot === 'hair-back') {
+          // Extract style from part ID (e.g., 'hair-spiky' -> 'spiky')
+          const style = part.id.replace('hair-', '') as 'spiky' | 'long' | 'curly';
+          directionalParts[slot] = createHairPart(style, direction);
+        } else if (partSlot === 'eyes') {
+          const style = part.id.replace('eyes-', '') as 'round' | 'anime' | 'small';
+          directionalParts[slot] = createEyePart(style, direction);
+        } else if (partSlot === 'torso') {
+          const style = part.id.replace('torso-', '') as 'basic-shirt' | 'armor' | 'robe';
+          directionalParts[slot] = createTorsoPart(style, direction);
+        }
+        // Add more part types as needed
+      }
+    }
+    
+    // Assemble character for this direction
+    const assembled = assembleCharacter(baseBody, directionalParts, character.colorScheme, direction);
+    
+    // Write PNG for this direction
+    const outputPath = join(rendersDir, `${direction}.png`);
+    await writePNG({
+      buffer: assembled.buffer,
+      width: assembled.width,
+      height: assembled.height,
+    }, outputPath);
+  }
+  
+  console.log(`Rendered character ${character.id} in ${directions.length} view directions: ${directions.join(', ')}`);
+  console.log(`Files saved to chars/${character.id}/renders/`);
+}
+
+/**
+ * Render character in single view (backward compatibility)
+ */
+async function renderSingleView(character: Character, outputPath?: string): Promise<void> {
+  // Create base body (default front view)
+  const baseBody = createBaseBody(character.build, character.height);
+  
+  // Assemble character (default front view)
+  const assembled = assembleCharacter(baseBody, character.equippedParts, character.colorScheme);
+  
+  // Determine output path
+  const finalOutputPath = outputPath ?? join(getCharDir(character.id), 'render.png');
+  
+  // Ensure output directory exists
+  mkdirSync(dirname(finalOutputPath), { recursive: true });
+  
+  // Write PNG
+  await writePNG({
+    buffer: assembled.buffer,
+    width: assembled.width,
+    height: assembled.height,
+  }, finalOutputPath);
+  
+  if (outputPath !== undefined && outputPath !== '') {
+    console.log(`Rendered character to ${finalOutputPath}`);
+  } else {
+    console.log(`Rendered character: ${character.id}`);
+  }
 }
 
 /**

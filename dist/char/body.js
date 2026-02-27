@@ -152,6 +152,21 @@ function drawCircle(buffer, width, height, cx, cy, radius, r, g, b, a, filled) {
   }
 }
 
+// src/char/view.ts
+var ALL_VIEW_DIRECTIONS = [
+  "front",
+  "back",
+  "left",
+  "right",
+  "front-left",
+  "front-right",
+  "back-left",
+  "back-right"
+];
+function isValidViewDirection(direction) {
+  return ALL_VIEW_DIRECTIONS.includes(direction);
+}
+
 // src/char/body.ts
 var COLORS = {
   skin: { r: 255, g: 213, b: 160, a: 255 },
@@ -161,20 +176,23 @@ var COLORS = {
   shadow: { r: 230, g: 190, b: 140, a: 255 }
   // #E6BE8C - skin shadow
 };
-function createBaseBody(build, height) {
+function createBaseBody(build, height, direction = "front") {
   if (!isValidBuild(build)) {
     throw new Error(`Invalid build type: ${build}. Valid types: skinny, normal, muscular`);
   }
   if (!isValidHeight(height)) {
     throw new Error(`Invalid height type: ${height}. Valid types: short, average, tall`);
   }
+  if (!isValidViewDirection(direction)) {
+    throw new Error(`Invalid view direction: ${direction}. Valid directions: front, back, left, right, front-left, front-right, back-left, back-right`);
+  }
   const canvas = createCanvas(32, 48);
   const buildFactor = getBuildFactor(build);
   const heightFactor = getHeightFactor(height);
-  drawChibiHead(canvas, buildFactor, heightFactor);
-  drawChibiTorso(canvas, buildFactor, heightFactor);
-  drawChibiLegs(canvas, buildFactor, heightFactor);
-  drawChibiArms(canvas, buildFactor, heightFactor);
+  drawChibiHead(canvas, buildFactor, heightFactor, direction);
+  drawChibiTorso(canvas, buildFactor, heightFactor, direction);
+  drawChibiLegs(canvas, buildFactor, heightFactor, direction);
+  drawChibiArms(canvas, buildFactor, heightFactor, direction);
   return {
     ...canvas,
     build,
@@ -207,11 +225,65 @@ function getHeightFactor(height) {
       return 1.1;
   }
 }
-function drawChibiHead(canvas, buildFactor, heightFactor) {
+function drawChibiHead(canvas, buildFactor, heightFactor, direction) {
   const centerX = 16;
   const baseHeadY = 12;
   const headY = Math.floor(baseHeadY / heightFactor);
   const headRadius = Math.floor(8 * buildFactor);
+  switch (direction) {
+    case "front":
+      drawFrontHead(canvas, centerX, headY, headRadius);
+      break;
+    case "back":
+      drawBackHead(canvas, centerX, headY, headRadius);
+      break;
+    case "left":
+      drawLeftHead(canvas, centerX, headY, headRadius);
+      break;
+    case "right":
+      drawRightHead(canvas, centerX, headY, headRadius);
+      break;
+    case "front-left":
+      drawDiagonalHead(canvas, centerX, headY, headRadius, "front-left");
+      break;
+    case "front-right":
+      drawDiagonalHead(canvas, centerX, headY, headRadius, "front-right");
+      break;
+    case "back-left":
+      drawDiagonalHead(canvas, centerX, headY, headRadius, "back-left");
+      break;
+    case "back-right":
+      drawDiagonalHead(canvas, centerX, headY, headRadius, "back-right");
+      break;
+  }
+}
+function drawChibiTorso(canvas, buildFactor, heightFactor, direction) {
+  const centerX = 16;
+  const baseTorsoY = 24;
+  const torsoY = Math.floor(baseTorsoY / heightFactor);
+  const torsoWidth = Math.floor(10 * buildFactor);
+  const torsoHeight = Math.floor(12 * heightFactor);
+  drawDirectionalTorso(canvas, centerX, torsoY, torsoWidth, torsoHeight, direction);
+}
+function drawChibiLegs(canvas, buildFactor, heightFactor, direction) {
+  const centerX = 16;
+  const baseLegsY = 36;
+  const legsY = Math.floor(baseLegsY / heightFactor);
+  const legWidth = Math.floor(4 * buildFactor);
+  const legHeight = Math.floor(8 * heightFactor);
+  const legSpacing = Math.floor(3 * buildFactor);
+  drawDirectionalLegs(canvas, centerX, legsY, legWidth, legHeight, legSpacing, direction);
+}
+function drawChibiArms(canvas, buildFactor, heightFactor, direction) {
+  const centerX = 16;
+  const baseTorsoY = 24;
+  const armY = Math.floor(baseTorsoY / heightFactor);
+  const armWidth = Math.floor(3 * buildFactor);
+  const armHeight = Math.floor(8 * heightFactor);
+  const armDistance = Math.floor(8 * buildFactor);
+  drawDirectionalArms(canvas, centerX, armY, armWidth, armHeight, armDistance, direction);
+}
+function drawFrontHead(canvas, centerX, headY, headRadius) {
   drawCircle(
     canvas.buffer,
     canvas.width,
@@ -260,18 +332,259 @@ function drawChibiHead(canvas, buildFactor, heightFactor) {
     }
   }
 }
-function drawChibiTorso(canvas, buildFactor, heightFactor) {
-  const centerX = 16;
-  const baseTorsoY = 24;
-  const torsoY = Math.floor(baseTorsoY / heightFactor);
-  const torsoWidth = Math.floor(10 * buildFactor);
-  const torsoHeight = Math.floor(12 * heightFactor);
+function drawBackHead(canvas, centerX, headY, headRadius) {
+  drawCircle(
+    canvas.buffer,
+    canvas.width,
+    canvas.height,
+    centerX,
+    headY,
+    headRadius,
+    COLORS.skin.r,
+    COLORS.skin.g,
+    COLORS.skin.b,
+    COLORS.skin.a,
+    true
+    // filled
+  );
+  drawCircle(
+    canvas.buffer,
+    canvas.width,
+    canvas.height,
+    centerX,
+    headY,
+    headRadius,
+    COLORS.outline.r,
+    COLORS.outline.g,
+    COLORS.outline.b,
+    COLORS.outline.a,
+    false
+    // outline only
+  );
+  const shadowRadius = Math.floor(headRadius * 0.6);
+  const shadowY = headY + 2;
+  const shadowX = centerX - 4;
+  for (let i = 0; i < shadowRadius; i++) {
+    const x = shadowX - i;
+    const y = shadowY;
+    if (x >= 0 && x < canvas.width && y < canvas.height) {
+      setPixel(
+        canvas.buffer,
+        canvas.width,
+        x,
+        y,
+        COLORS.shadow.r,
+        COLORS.shadow.g,
+        COLORS.shadow.b,
+        COLORS.shadow.a
+      );
+    }
+  }
+}
+function drawLeftHead(canvas, centerX, headY, headRadius) {
+  const profileWidth = Math.floor(headRadius * 0.7);
+  const profileHeight = headRadius;
+  for (let y = -profileHeight; y <= profileHeight; y++) {
+    for (let x = -profileWidth; x <= profileWidth; x++) {
+      const ellipseTest = x * x / (profileWidth * profileWidth) + y * y / (profileHeight * profileHeight);
+      if (ellipseTest <= 1) {
+        const pixelX = centerX + x - 2;
+        const pixelY = headY + y;
+        if (pixelX >= 0 && pixelX < canvas.width && pixelY >= 0 && pixelY < canvas.height) {
+          setPixel(
+            canvas.buffer,
+            canvas.width,
+            pixelX,
+            pixelY,
+            COLORS.skin.r,
+            COLORS.skin.g,
+            COLORS.skin.b,
+            COLORS.skin.a
+          );
+        }
+      }
+    }
+  }
+  for (let y = -profileHeight; y <= profileHeight; y++) {
+    const x = Math.floor(Math.sqrt((1 - y * y / (profileHeight * profileHeight)) * profileWidth * profileWidth));
+    const pixelX = centerX + x - 2;
+    const pixelY = headY + y;
+    if (pixelX >= 0 && pixelX < canvas.width && pixelY >= 0 && pixelY < canvas.height) {
+      setPixel(
+        canvas.buffer,
+        canvas.width,
+        pixelX,
+        pixelY,
+        COLORS.outline.r,
+        COLORS.outline.g,
+        COLORS.outline.b,
+        COLORS.outline.a
+      );
+    }
+  }
+}
+function drawRightHead(canvas, centerX, headY, headRadius) {
+  const profileWidth = Math.floor(headRadius * 0.7);
+  const profileHeight = headRadius;
+  for (let y = -profileHeight; y <= profileHeight; y++) {
+    for (let x = -profileWidth; x <= profileWidth; x++) {
+      const ellipseTest = x * x / (profileWidth * profileWidth) + y * y / (profileHeight * profileHeight);
+      if (ellipseTest <= 1) {
+        const pixelX = centerX + x + 2;
+        const pixelY = headY + y;
+        if (pixelX >= 0 && pixelX < canvas.width && pixelY >= 0 && pixelY < canvas.height) {
+          setPixel(
+            canvas.buffer,
+            canvas.width,
+            pixelX,
+            pixelY,
+            COLORS.skin.r,
+            COLORS.skin.g,
+            COLORS.skin.b,
+            COLORS.skin.a
+          );
+        }
+      }
+    }
+  }
+  for (let y = -profileHeight; y <= profileHeight; y++) {
+    const x = -Math.floor(Math.sqrt((1 - y * y / (profileHeight * profileHeight)) * profileWidth * profileWidth));
+    const pixelX = centerX + x + 2;
+    const pixelY = headY + y;
+    if (pixelX >= 0 && pixelX < canvas.width && pixelY >= 0 && pixelY < canvas.height) {
+      setPixel(
+        canvas.buffer,
+        canvas.width,
+        pixelX,
+        pixelY,
+        COLORS.outline.r,
+        COLORS.outline.g,
+        COLORS.outline.b,
+        COLORS.outline.a
+      );
+    }
+  }
+}
+function drawDiagonalHead(canvas, centerX, headY, headRadius, direction) {
+  const horizontalFactor = 0.85;
+  const adjustedRadius = Math.floor(headRadius * horizontalFactor);
+  let offsetX = 0;
+  let shadowOffsetX = 0;
+  let shadowOffsetY = 0;
+  if (direction.includes("left")) {
+    offsetX = -1;
+  } else if (direction.includes("right")) {
+    offsetX = 1;
+  }
+  if (direction.includes("front")) {
+    shadowOffsetX = direction.includes("left") ? 1 : -1;
+    shadowOffsetY = 1;
+  } else {
+    shadowOffsetX = direction.includes("left") ? -2 : 2;
+    shadowOffsetY = 2;
+  }
+  for (let y = -headRadius; y <= headRadius; y++) {
+    for (let x = -adjustedRadius; x <= adjustedRadius; x++) {
+      const ellipseTest = x * x / (adjustedRadius * adjustedRadius) + y * y / (headRadius * headRadius);
+      if (ellipseTest <= 1) {
+        const pixelX = centerX + x + offsetX;
+        const pixelY = headY + y;
+        if (pixelX >= 0 && pixelX < canvas.width && pixelY >= 0 && pixelY < canvas.height) {
+          setPixel(
+            canvas.buffer,
+            canvas.width,
+            pixelX,
+            pixelY,
+            COLORS.skin.r,
+            COLORS.skin.g,
+            COLORS.skin.b,
+            COLORS.skin.a
+          );
+        }
+      }
+    }
+  }
+  for (let y = -headRadius; y <= headRadius; y++) {
+    const xOffset = Math.floor(Math.sqrt((1 - y * y / (headRadius * headRadius)) * adjustedRadius * adjustedRadius));
+    const leftX = centerX - xOffset + offsetX;
+    if (leftX >= 0 && leftX < canvas.width && headY + y >= 0 && headY + y < canvas.height) {
+      setPixel(
+        canvas.buffer,
+        canvas.width,
+        leftX,
+        headY + y,
+        COLORS.outline.r,
+        COLORS.outline.g,
+        COLORS.outline.b,
+        COLORS.outline.a
+      );
+    }
+    const rightX = centerX + xOffset + offsetX;
+    if (rightX >= 0 && rightX < canvas.width && headY + y >= 0 && headY + y < canvas.height) {
+      setPixel(
+        canvas.buffer,
+        canvas.width,
+        rightX,
+        headY + y,
+        COLORS.outline.r,
+        COLORS.outline.g,
+        COLORS.outline.b,
+        COLORS.outline.a
+      );
+    }
+  }
+  const shadowRadius = Math.floor(headRadius * 0.4);
+  for (let i = 0; i < shadowRadius; i++) {
+    for (let j = 0; j < shadowRadius; j++) {
+      const shadowX = centerX + shadowOffsetX + i;
+      const shadowY = headY + shadowOffsetY + j;
+      if (shadowX >= 0 && shadowX < canvas.width && shadowY >= 0 && shadowY < canvas.height) {
+        setPixel(
+          canvas.buffer,
+          canvas.width,
+          shadowX,
+          shadowY,
+          COLORS.shadow.r,
+          COLORS.shadow.g,
+          COLORS.shadow.b,
+          COLORS.shadow.a
+        );
+      }
+    }
+  }
+}
+function drawDirectionalTorso(canvas, centerX, torsoY, torsoWidth, torsoHeight, direction) {
+  let actualWidth = torsoWidth;
+  let offsetX = 0;
+  switch (direction) {
+    case "front":
+    case "back":
+      break;
+    case "left":
+      actualWidth = Math.floor(torsoWidth * 0.6);
+      offsetX = -2;
+      break;
+    case "right":
+      actualWidth = Math.floor(torsoWidth * 0.6);
+      offsetX = 2;
+      break;
+    case "front-left":
+    case "back-left":
+      actualWidth = Math.floor(torsoWidth * 0.8);
+      offsetX = -1;
+      break;
+    case "front-right":
+    case "back-right":
+      actualWidth = Math.floor(torsoWidth * 0.8);
+      offsetX = 1;
+      break;
+  }
   drawRect(
     canvas.buffer,
     canvas.width,
-    centerX - torsoWidth / 2,
+    centerX - actualWidth / 2 + offsetX,
     torsoY - torsoHeight / 2,
-    centerX + torsoWidth / 2,
+    centerX + actualWidth / 2 + offsetX,
     torsoY + torsoHeight / 2,
     COLORS.skin.r,
     COLORS.skin.g,
@@ -283,9 +596,9 @@ function drawChibiTorso(canvas, buildFactor, heightFactor) {
   drawRect(
     canvas.buffer,
     canvas.width,
-    centerX - torsoWidth / 2,
+    centerX - actualWidth / 2 + offsetX,
     torsoY - torsoHeight / 2,
-    centerX + torsoWidth / 2,
+    centerX + actualWidth / 2 + offsetX,
     torsoY + torsoHeight / 2,
     COLORS.outline.r,
     COLORS.outline.g,
@@ -295,19 +608,39 @@ function drawChibiTorso(canvas, buildFactor, heightFactor) {
     // outline only
   );
 }
-function drawChibiLegs(canvas, buildFactor, heightFactor) {
-  const centerX = 16;
-  const baseLegsY = 36;
-  const legsY = Math.floor(baseLegsY / heightFactor);
-  const legWidth = Math.floor(4 * buildFactor);
-  const legHeight = Math.floor(8 * heightFactor);
-  const legSpacing = Math.floor(3 * buildFactor);
+function drawDirectionalLegs(canvas, centerX, legsY, legWidth, legHeight, legSpacing, direction) {
+  let actualLegSpacing = legSpacing;
+  const actualLegWidth = legWidth;
+  let offsetX = 0;
+  switch (direction) {
+    case "front":
+    case "back":
+      break;
+    case "left":
+      actualLegSpacing = Math.floor(legSpacing * 0.5);
+      offsetX = -1;
+      break;
+    case "right":
+      actualLegSpacing = Math.floor(legSpacing * 0.5);
+      offsetX = 1;
+      break;
+    case "front-left":
+    case "back-left":
+      actualLegSpacing = Math.floor(legSpacing * 0.7);
+      offsetX = -1;
+      break;
+    case "front-right":
+    case "back-right":
+      actualLegSpacing = Math.floor(legSpacing * 0.7);
+      offsetX = 1;
+      break;
+  }
   drawRect(
     canvas.buffer,
     canvas.width,
-    centerX - legSpacing - legWidth,
+    centerX - actualLegSpacing - actualLegWidth + offsetX,
     legsY,
-    centerX - legSpacing,
+    centerX - actualLegSpacing + offsetX,
     legsY + legHeight,
     COLORS.skin.r,
     COLORS.skin.g,
@@ -319,9 +652,9 @@ function drawChibiLegs(canvas, buildFactor, heightFactor) {
   drawRect(
     canvas.buffer,
     canvas.width,
-    centerX + legSpacing,
+    centerX + actualLegSpacing + offsetX,
     legsY,
-    centerX + legSpacing + legWidth,
+    centerX + actualLegSpacing + actualLegWidth + offsetX,
     legsY + legHeight,
     COLORS.skin.r,
     COLORS.skin.g,
@@ -333,9 +666,9 @@ function drawChibiLegs(canvas, buildFactor, heightFactor) {
   drawRect(
     canvas.buffer,
     canvas.width,
-    centerX - legSpacing - legWidth,
+    centerX - actualLegSpacing - actualLegWidth + offsetX,
     legsY,
-    centerX - legSpacing,
+    centerX - actualLegSpacing + offsetX,
     legsY + legHeight,
     COLORS.outline.r,
     COLORS.outline.g,
@@ -347,9 +680,9 @@ function drawChibiLegs(canvas, buildFactor, heightFactor) {
   drawRect(
     canvas.buffer,
     canvas.width,
-    centerX + legSpacing,
+    centerX + actualLegSpacing + offsetX,
     legsY,
-    centerX + legSpacing + legWidth,
+    centerX + actualLegSpacing + actualLegWidth + offsetX,
     legsY + legHeight,
     COLORS.outline.r,
     COLORS.outline.g,
@@ -359,69 +692,94 @@ function drawChibiLegs(canvas, buildFactor, heightFactor) {
     // outline only
   );
 }
-function drawChibiArms(canvas, buildFactor, heightFactor) {
-  const centerX = 16;
-  const baseTorsoY = 24;
-  const armY = Math.floor(baseTorsoY / heightFactor);
-  const armWidth = Math.floor(3 * buildFactor);
-  const armHeight = Math.floor(8 * heightFactor);
-  const armDistance = Math.floor(8 * buildFactor);
-  drawRect(
-    canvas.buffer,
-    canvas.width,
-    centerX - armDistance - armWidth,
-    armY - armHeight / 2,
-    centerX - armDistance,
-    armY + armHeight / 2,
-    COLORS.skin.r,
-    COLORS.skin.g,
-    COLORS.skin.b,
-    COLORS.skin.a,
-    true
-    // filled
-  );
-  drawRect(
-    canvas.buffer,
-    canvas.width,
-    centerX + armDistance,
-    armY - armHeight / 2,
-    centerX + armDistance + armWidth,
-    armY + armHeight / 2,
-    COLORS.skin.r,
-    COLORS.skin.g,
-    COLORS.skin.b,
-    COLORS.skin.a,
-    true
-    // filled
-  );
-  drawRect(
-    canvas.buffer,
-    canvas.width,
-    centerX - armDistance - armWidth,
-    armY - armHeight / 2,
-    centerX - armDistance,
-    armY + armHeight / 2,
-    COLORS.outline.r,
-    COLORS.outline.g,
-    COLORS.outline.b,
-    COLORS.outline.a,
-    false
-    // outline only
-  );
-  drawRect(
-    canvas.buffer,
-    canvas.width,
-    centerX + armDistance,
-    armY - armHeight / 2,
-    centerX + armDistance + armWidth,
-    armY + armHeight / 2,
-    COLORS.outline.r,
-    COLORS.outline.g,
-    COLORS.outline.b,
-    COLORS.outline.a,
-    false
-    // outline only
-  );
+function drawDirectionalArms(canvas, centerX, armY, armWidth, armHeight, armDistance, direction) {
+  let leftArmVisible = true;
+  let rightArmVisible = true;
+  let leftArmOffset = 0;
+  let rightArmOffset = 0;
+  switch (direction) {
+    case "front":
+    case "back":
+      break;
+    case "left":
+      rightArmVisible = false;
+      leftArmOffset = -2;
+      break;
+    case "right":
+      leftArmVisible = false;
+      rightArmOffset = 2;
+      break;
+    case "front-left":
+    case "back-left":
+      leftArmOffset = -1;
+      rightArmOffset = 1;
+      break;
+    case "front-right":
+    case "back-right":
+      leftArmOffset = 1;
+      rightArmOffset = -1;
+      break;
+  }
+  if (leftArmVisible) {
+    drawRect(
+      canvas.buffer,
+      canvas.width,
+      centerX - armDistance - armWidth + leftArmOffset,
+      armY - armHeight / 2,
+      centerX - armDistance + leftArmOffset,
+      armY + armHeight / 2,
+      COLORS.skin.r,
+      COLORS.skin.g,
+      COLORS.skin.b,
+      COLORS.skin.a,
+      true
+      // filled
+    );
+    drawRect(
+      canvas.buffer,
+      canvas.width,
+      centerX - armDistance - armWidth + leftArmOffset,
+      armY - armHeight / 2,
+      centerX - armDistance + leftArmOffset,
+      armY + armHeight / 2,
+      COLORS.outline.r,
+      COLORS.outline.g,
+      COLORS.outline.b,
+      COLORS.outline.a,
+      false
+      // outline only
+    );
+  }
+  if (rightArmVisible) {
+    drawRect(
+      canvas.buffer,
+      canvas.width,
+      centerX + armDistance + rightArmOffset,
+      armY - armHeight / 2,
+      centerX + armDistance + armWidth + rightArmOffset,
+      armY + armHeight / 2,
+      COLORS.skin.r,
+      COLORS.skin.g,
+      COLORS.skin.b,
+      COLORS.skin.a,
+      true
+      // filled
+    );
+    drawRect(
+      canvas.buffer,
+      canvas.width,
+      centerX + armDistance + rightArmOffset,
+      armY - armHeight / 2,
+      centerX + armDistance + armWidth + rightArmOffset,
+      armY + armHeight / 2,
+      COLORS.outline.r,
+      COLORS.outline.g,
+      COLORS.outline.b,
+      COLORS.outline.a,
+      false
+      // outline only
+    );
+  }
 }
 
 export { createBaseBody };

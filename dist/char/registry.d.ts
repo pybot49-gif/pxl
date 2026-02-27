@@ -1,5 +1,6 @@
 import { CharacterPart, PartSlot } from './parts.js';
 import '../core/canvas.js';
+import './view.js';
 
 /**
  * Registry for managing character parts

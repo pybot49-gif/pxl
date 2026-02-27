@@ -4,6 +4,7 @@ import { createBodyTemplate } from './template.js';
 import type { BaseBodySprite } from './body.js';
 import type { CharacterPart, PartSlot } from './parts.js';
 import { applyColorScheme, type ColorScheme } from './color.js';
+import { isValidViewDirection, type ViewDirection } from './view.js';
 
 /**
  * Map of equipped character parts by slot
@@ -59,13 +60,20 @@ export function createCharacterCanvas(width: number, height: number): Canvas {
  * @param baseBody Base body sprite
  * @param equippedParts Map of equipped parts by slot
  * @param colorScheme Color scheme to apply
+ * @param direction View direction (defaults to 'front')
  * @returns Assembled character with composited pixel data
  */
 export function assembleCharacter(
   baseBody: BaseBodySprite,
   equippedParts: EquippedParts,
-  colorScheme: ColorScheme
+  colorScheme: ColorScheme,
+  direction: ViewDirection = 'front'
 ): AssembledCharacter {
+  // Validate view direction
+  if (!isValidViewDirection(direction)) {
+    throw new Error(`Invalid view direction: ${direction}. Valid directions: front, back, left, right, front-left, front-right, back-left, back-right`);
+  }
+
   // Create output canvas matching base body dimensions
   const canvas = createCharacterCanvas(baseBody.width, baseBody.height);
   
