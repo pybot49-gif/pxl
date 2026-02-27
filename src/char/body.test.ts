@@ -4,29 +4,29 @@ import { getPixel } from '../core/draw.js';
 
 describe('Base Body Template (#46)', () => {
   describe('createBaseBody', () => {
-    it('should create a 32x48 chibi sprite', () => {
+    it('should create a 48x64 chibi sprite', () => {
       const body = createBaseBody('normal', 'average');
       
-      expect(body.width).toBe(32);
-      expect(body.height).toBe(48);
+      expect(body.width).toBe(48);
+      expect(body.height).toBe(64);
       expect(body.buffer).toBeInstanceOf(Uint8Array);
-      expect(body.buffer.length).toBe(32 * 48 * 4); // RGBA buffer
+      expect(body.buffer.length).toBe(48 * 64 * 4); // RGBA buffer
     });
 
     it('should draw a basic chibi body shape', () => {
       const body = createBaseBody('normal', 'average');
       
       // Check that some pixels in the expected body area are not transparent
-      // Head area (upper third)
-      const headPixel = getPixel(body.buffer, body.width, 16, 12);
+      // Head area (upper portion - around row 18)
+      const headPixel = getPixel(body.buffer, body.width, 24, 18);
       expect(headPixel.a).toBeGreaterThan(0); // Not transparent
       
-      // Torso area (middle third) 
-      const torsoPixel = getPixel(body.buffer, body.width, 16, 24);
+      // Torso area (middle portion - around row 42) 
+      const torsoPixel = getPixel(body.buffer, body.width, 24, 42);
       expect(torsoPixel.a).toBeGreaterThan(0); // Not transparent
       
-      // Legs area (lower third) - check inside a leg, not between them
-      const legsPixel = getPixel(body.buffer, body.width, 12, 38);
+      // Legs area (lower portion - around row 56) - check inside a leg, not between them
+      const legsPixel = getPixel(body.buffer, body.width, 15, 56);
       expect(legsPixel.a).toBeGreaterThan(0); // Not transparent
     });
 

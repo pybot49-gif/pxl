@@ -41,11 +41,11 @@ function createBodyTemplate(id, width, height, style) {
     throw new Error("Invalid template dimensions: width and height must be positive");
   }
   const headCenterX = Math.floor(width / 2);
-  const headCenterY = Math.floor(height / 4);
+  const headCenterY = Math.floor(height * 0.28);
   const torsoCenterX = Math.floor(width / 2);
-  const torsoCenterY = Math.floor(height / 2);
+  const torsoCenterY = Math.floor(height * 0.66);
   const legsCenterX = Math.floor(width / 2);
-  const legsCenterY = Math.floor(height * 3 / 4);
+  const legsCenterY = Math.floor(height * 0.84);
   return {
     id,
     width,

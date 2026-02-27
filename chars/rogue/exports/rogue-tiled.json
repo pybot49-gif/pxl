@@ -1,65 +1,65 @@
 {
   "image": "rogue-sheet.png",
-  "imageWidth": 263,
-  "imageHeight": 48,
+  "imageWidth": 146,
+  "imageHeight": 194,
   "frames": [
     {
       "name": "front",
       "x": 0,
       "y": 0,
-      "w": 32,
-      "h": 48
+      "w": 48,
+      "h": 64
     },
     {
       "name": "back",
-      "x": 33,
+      "x": 49,
       "y": 0,
-      "w": 32,
-      "h": 48
+      "w": 48,
+      "h": 64
     },
     {
       "name": "left",
-      "x": 66,
+      "x": 98,
       "y": 0,
-      "w": 32,
-      "h": 48
+      "w": 48,
+      "h": 64
     },
     {
       "name": "right",
-      "x": 99,
-      "y": 0,
-      "w": 32,
-      "h": 48
+      "x": 0,
+      "y": 65,
+      "w": 48,
+      "h": 64
     },
     {
       "name": "front-left",
-      "x": 132,
-      "y": 0,
-      "w": 32,
-      "h": 48
+      "x": 49,
+      "y": 65,
+      "w": 48,
+      "h": 64
     },
     {
       "name": "front-right",
-      "x": 165,
-      "y": 0,
-      "w": 32,
-      "h": 48
+      "x": 98,
+      "y": 65,
+      "w": 48,
+      "h": 64
     },
     {
       "name": "back-left",
-      "x": 198,
-      "y": 0,
-      "w": 32,
-      "h": 48
+      "x": 0,
+      "y": 130,
+      "w": 48,
+      "h": 64
     },
     {
       "name": "back-right",
-      "x": 231,
-      "y": 0,
-      "w": 32,
-      "h": 48
+      "x": 49,
+      "y": 130,
+      "w": 48,
+      "h": 64
     }
   ],
-  "tileWidth": 32,
-  "tileHeight": 48
+  "tileWidth": 48,
+  "tileHeight": 64
 }

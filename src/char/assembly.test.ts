@@ -12,12 +12,12 @@ import { getPixel } from '../core/draw.js';
 describe('Character Assembly System (#51)', () => {
   describe('createCharacterCanvas', () => {
     it('should create canvas with correct dimensions', () => {
-      const canvas = createCharacterCanvas(32, 48);
+      const canvas = createCharacterCanvas(48, 64);
       
-      expect(canvas.width).toBe(32);
-      expect(canvas.height).toBe(48);
+      expect(canvas.width).toBe(48);
+      expect(canvas.height).toBe(64);
       expect(canvas.buffer).toBeInstanceOf(Uint8Array);
-      expect(canvas.buffer.length).toBe(32 * 48 * 4);
+      expect(canvas.buffer.length).toBe(48 * 64 * 4);
     });
 
     it('should initialize with transparent background', () => {
@@ -53,8 +53,8 @@ describe('Character Assembly System (#51)', () => {
 
       const assembled = assembleCharacter(baseBody, equippedParts, colorScheme);
       
-      expect(assembled.width).toBe(32);
-      expect(assembled.height).toBe(48);
+      expect(assembled.width).toBe(48);
+      expect(assembled.height).toBe(64);
       expect(assembled.buffer).toBeInstanceOf(Uint8Array);
       expect(assembled.equippedParts).toEqual(equippedParts);
       expect(assembled.colorScheme).toEqual(colorScheme);
@@ -109,8 +109,8 @@ describe('Character Assembly System (#51)', () => {
 
       const assembled = assembleCharacter(baseBody, equippedParts, colorScheme);
       
-      expect(assembled.width).toBe(32);
-      expect(assembled.height).toBe(48);
+      expect(assembled.width).toBe(48);
+      expect(assembled.height).toBe(64);
       
       // Should still have body pixels
       let hasBodyPixels = false;
@@ -185,8 +185,8 @@ describe('Character Assembly System (#51)', () => {
       // Should not crash even if hair extends beyond expected bounds
       expect(() => {
         const assembled = assembleCharacter(baseBody, equippedParts, colorScheme);
-        expect(assembled.width).toBe(32);
-        expect(assembled.height).toBe(48);
+        expect(assembled.width).toBe(48);
+        expect(assembled.height).toBe(64);
       }).not.toThrow();
     });
 
@@ -240,7 +240,7 @@ describe('Character Assembly System (#51)', () => {
       
       // The character should be properly composited
       // (Testing exact z-order would require more specific overlap scenarios)
-      expect(assembled.buffer.length).toBe(32 * 48 * 4);
+      expect(assembled.buffer.length).toBe(48 * 64 * 4);
       
       let totalOpaquePixels = 0;
       for (let y = 0; y < assembled.height; y++) {
@@ -254,7 +254,7 @@ describe('Character Assembly System (#51)', () => {
       
       // Should have a reasonable number of opaque pixels for a character
       expect(totalOpaquePixels).toBeGreaterThan(50);
-      expect(totalOpaquePixels).toBeLessThan(32 * 48); // Not every pixel filled
+      expect(totalOpaquePixels).toBeLessThan(48 * 64); // Not every pixel filled
     });
 
     it('should handle alpha blending correctly', () => {
