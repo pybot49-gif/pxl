@@ -7,6 +7,7 @@ import { addLayerCommands } from './layer-commands.js';
 import { addPaletteCommands } from './palette-commands.js';
 import { addProjectCommands } from './project-commands.js';
 import { addCharCommands } from './char-commands.js';
+import { addExportCommands } from './export-commands.js';
 
 /**
  * Read package.json to get version information
@@ -40,6 +41,7 @@ function createProgram(): Command {
   addPaletteCommands(program);
   addProjectCommands(program);
   addCharCommands(program);
+  addExportCommands(program);
 
   return program;
 }

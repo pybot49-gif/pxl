@@ -8,7 +8,8 @@ import { createHairPart, createEyePart, createTorsoPart, type PartSlot } from '.
 import { createBaseBody } from '../char/body.js';
 import { assembleCharacter } from '../char/assembly.js';
 import { COLOR_PRESETS, type Color } from '../char/color.js';
-import { parseViewDirections } from '../char/view.js';
+import { parseViewDirections, ALL_VIEW_DIRECTIONS } from '../char/view.js';
+import { packSheet, generateTiledMetadata, type Frame } from '../export/sheet.js';
 
 /**
  * Get the characters directory path
@@ -381,46 +382,149 @@ export function createCharRemoveCommand(): Command {
  */
 export function createCharExportCommand(): Command {
   return new Command('export')
-    .description('Export character data')
+    .description('Export character data or sprite sheet')
     .argument('<name>', 'Character name')
-    .option('--output <path>', 'Output JSON path (default: chars/<name>/export.json)')
-    .option('--include-renders', 'Include rendered images in export')
-    .action(async (name: string, options: { output?: string; includeRenders?: boolean }) => {
+    .option('--format <format>', 'Export format: json or sheet', 'json')
+    .option('--layout <layout>', 'Sheet layout (grid-8dir, strip-horizontal, strip-vertical)', 'grid-8dir')
+    .option('--padding <pixels>', 'Padding between frames in pixels (sheet format only)', '0')
+    .option('--output <path>', 'Output JSON path (json format only, default: chars/<name>/export.json)')
+    .option('--include-renders', 'Include rendered images in export (json format only)')
+    .action(async (name: string, options: { 
+      format?: string; 
+      layout?: string;
+      padding?: string;
+      output?: string; 
+      includeRenders?: boolean;
+    }) => {
       try {
-        const character = loadCharacterFromDisk(name);
+        const format = options.format ?? 'json';
         
-        // Determine output path
-        const outputPath = options.output ?? join(getCharDir(name), 'export.json');
-        
-        // Ensure output directory exists
-        mkdirSync(dirname(outputPath), { recursive: true });
-        
-        const exportData = saveCharacter(character);
-        writeFileSync(outputPath, exportData, 'utf-8');
-        
-        if (options.includeRenders === true) {
-          // Also render character for export
-          const baseBody = createBaseBody(character.build, character.height);
-          const assembled = assembleCharacter(baseBody, character.equippedParts, character.colorScheme);
+        if (format === 'sheet') {
+          // Sheet export
+          let layout = options.layout ?? 'grid-8dir';
+          const padding = parseInt(options.padding ?? '0', 10);
+
+          // Map grid-8dir to grid for the packSheet function
+          if (layout === 'grid-8dir') {
+            layout = 'grid';
+          }
+
+          if (!['grid', 'strip-horizontal', 'strip-vertical'].includes(layout)) {
+            throw new Error(`Invalid layout: ${layout}. Valid options: grid-8dir, strip-horizontal, strip-vertical`);
+          }
+
+          if (isNaN(padding) || padding < 0) {
+            throw new Error(`Invalid padding: ${options.padding}. Must be a non-negative number`);
+          }
+
+          await exportCharacterSheet(name, layout as 'grid' | 'strip-horizontal' | 'strip-vertical', padding);
+        } else if (format === 'json') {
+          // JSON export (original functionality)
+          const character = loadCharacterFromDisk(name);
           
-          const renderPath = outputPath.replace('.json', '.png');
-          await writePNG({
-            buffer: assembled.buffer,
-            width: assembled.width,
-            height: assembled.height,
-          }, renderPath);
+          // Determine output path
+          const outputPath = options.output ?? join(getCharDir(name), 'export.json');
           
-          console.log(`Exported character with renders to ${dirname(outputPath)}`);
-        } else if (options.output !== undefined && options.output !== '') {
-          console.log(`Exported character to ${outputPath}`);
+          // Ensure output directory exists
+          mkdirSync(dirname(outputPath), { recursive: true });
+          
+          const exportData = saveCharacter(character);
+          writeFileSync(outputPath, exportData, 'utf-8');
+          
+          if (options.includeRenders === true) {
+            // Also render character for export
+            const baseBody = createBaseBody(character.build, character.height);
+            const assembled = assembleCharacter(baseBody, character.equippedParts, character.colorScheme);
+            
+            const renderPath = outputPath.replace('.json', '.png');
+            await writePNG({
+              buffer: assembled.buffer,
+              width: assembled.width,
+              height: assembled.height,
+            }, renderPath);
+            
+            console.log(`Exported character with renders to ${dirname(outputPath)}`);
+          } else if (options.output !== undefined && options.output !== '') {
+            console.log(`Exported character to ${outputPath}`);
+          } else {
+            console.log(`Exported character: ${name}`);
+          }
         } else {
-          console.log(`Exported character: ${name}`);
+          throw new Error(`Invalid format: ${format}. Valid options: json, sheet`);
         }
       } catch (error) {
         console.error('Error exporting character:', error instanceof Error ? error.message : String(error));
         process.exit(1);
       }
     });
+}
+
+/**
+ * Export a character as a sprite sheet
+ */
+async function exportCharacterSheet(
+  characterName: string, 
+  layout: 'grid' | 'strip-horizontal' | 'strip-vertical' = 'grid',
+  padding: number = 0
+): Promise<void> {
+  // Load character
+  const character = loadCharacterFromDisk(characterName);
+
+  // Create frames for all 8 directions
+  const frames: Frame[] = [];
+  
+  for (const direction of ALL_VIEW_DIRECTIONS) {
+    const baseBody = createBaseBody(character.build, character.height);
+    const assembled = assembleCharacter(
+      baseBody,
+      character.equippedParts,
+      character.colorScheme,
+      direction
+    );
+    
+    frames.push({
+      buffer: assembled.buffer,
+      width: assembled.width,
+      height: assembled.height,
+      name: direction,
+    });
+  }
+
+  // Pack frames into sheet
+  const sheet = packSheet(frames, layout, padding);
+
+  // Ensure exports directory exists
+  const exportsDir = join(getCharDir(characterName), 'exports');
+  if (!existsSync(exportsDir)) {
+    mkdirSync(exportsDir, { recursive: true });
+  }
+
+  // Write PNG file
+  const pngPath = join(exportsDir, `${characterName}-sheet.png`);
+  await writePNG({
+    buffer: sheet.buffer,
+    width: sheet.width,
+    height: sheet.height,
+  }, pngPath);
+
+  // Write metadata JSON
+  const jsonPath = join(exportsDir, `${characterName}-sheet.json`);
+  writeFileSync(jsonPath, JSON.stringify(sheet.metadata, null, 2));
+
+  // Write Tiled-compatible JSON
+  const tiledMetadata = generateTiledMetadata(
+    sheet.metadata,
+    `${characterName}-sheet.png`,
+    sheet.width,
+    sheet.height
+  );
+  const tiledPath = join(exportsDir, `${characterName}-tiled.json`);
+  writeFileSync(tiledPath, JSON.stringify(tiledMetadata, null, 2));
+
+  console.log(`Exported sprite sheet to:`);
+  console.log(`  PNG: ${pngPath}`);
+  console.log(`  Metadata: ${jsonPath}`);
+  console.log(`  Tiled: ${tiledPath}`);
 }
 
 /**
