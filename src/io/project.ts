@@ -183,7 +183,7 @@ export function createDefaultProjectConfig(name: string, iso: boolean = false): 
       tiers: {
         micro: [8, 12],
         small: [16, 24],
-        medium: [32, 48],
+        medium: [48, 64],
         large: [64, 96]
       }
     },

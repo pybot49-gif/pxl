@@ -38,13 +38,13 @@ export function createBodyTemplate(id: string, width: number, height: number, st
   }
 
   // Calculate proportional anchor points based on template dimensions
-  // For a chibi 32x48 template, these are the relative positions
+  // For a chibi 48x64 template, these are the relative positions
   const headCenterX = Math.floor(width / 2);
-  const headCenterY = Math.floor(height / 4);
+  const headCenterY = Math.floor(height * 0.28); // Around row 17-18 for 64-pixel height
   const torsoCenterX = Math.floor(width / 2);
-  const torsoCenterY = Math.floor(height / 2);
+  const torsoCenterY = Math.floor(height * 0.66); // Around row 42 for 64-pixel height
   const legsCenterX = Math.floor(width / 2);
-  const legsCenterY = Math.floor(height * 3 / 4);
+  const legsCenterY = Math.floor(height * 0.84); // Around row 54 for 64-pixel height
 
   return {
     id,

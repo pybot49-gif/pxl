@@ -9,10 +9,10 @@ describe('Character Parts (#48)', () => {
       
       expect(hair.id).toBe('hair-spiky');
       expect(hair.slot).toBe('hair-front');
-      expect(hair.width).toBe(16);
-      expect(hair.height).toBe(16);
+      expect(hair.width).toBe(48);
+      expect(hair.height).toBe(64);
       expect(hair.buffer).toBeInstanceOf(Uint8Array);
-      expect(hair.buffer.length).toBe(16 * 16 * 4);
+      expect(hair.buffer.length).toBe(48 * 64 * 4);
     });
 
     it('should create long hair part with different shape', () => {
@@ -20,8 +20,8 @@ describe('Character Parts (#48)', () => {
       
       expect(hair.id).toBe('hair-long');
       expect(hair.slot).toBe('hair-front');
-      expect(hair.width).toBe(16);
-      expect(hair.height).toBe(20);
+      expect(hair.width).toBe(48);
+      expect(hair.height).toBe(64);
     });
 
     it('should have placeholder hair color', () => {
@@ -58,8 +58,8 @@ describe('Character Parts (#48)', () => {
       
       expect(eyes.id).toBe('eyes-round');
       expect(eyes.slot).toBe('eyes');
-      expect(eyes.width).toBe(12);
-      expect(eyes.height).toBe(6);
+      expect(eyes.width).toBe(48);
+      expect(eyes.height).toBe(64);
       expect(eyes.buffer).toBeInstanceOf(Uint8Array);
     });
 
@@ -68,8 +68,8 @@ describe('Character Parts (#48)', () => {
       
       expect(eyes.id).toBe('eyes-anime');
       expect(eyes.slot).toBe('eyes');
-      expect(eyes.width).toBe(14);
-      expect(eyes.height).toBe(8);
+      expect(eyes.width).toBe(48);
+      expect(eyes.height).toBe(64);
     });
 
     it('should have proper eye colors', () => {
@@ -116,8 +116,8 @@ describe('Character Parts (#48)', () => {
       
       expect(torso.id).toBe('torso-basic-shirt');
       expect(torso.slot).toBe('torso');
-      expect(torso.width).toBe(16);
-      expect(torso.height).toBe(20);
+      expect(torso.width).toBe(48);
+      expect(torso.height).toBe(64);
       expect(torso.buffer).toBeInstanceOf(Uint8Array);
     });
 
@@ -126,8 +126,8 @@ describe('Character Parts (#48)', () => {
       
       expect(torso.id).toBe('torso-armor');
       expect(torso.slot).toBe('torso');
-      expect(torso.width).toBe(16);
-      expect(torso.height).toBe(20);
+      expect(torso.width).toBe(48);
+      expect(torso.height).toBe(64);
     });
 
     it('should have placeholder clothing color', () => {
@@ -201,10 +201,10 @@ describe('Character Parts (#48)', () => {
       const eyes = createEyePart('round');
       const torso = createTorsoPart('basic-shirt');
 
-      // All parts should be compatible with all builds
-      expect(hair.compatibleBodies).toContain('all');
-      expect(eyes.compatibleBodies).toContain('all');
-      expect(torso.compatibleBodies).toContain('all');
+      // All parts should be compatible with chibi builds
+      expect(hair.compatibleBodies).toContain('chibi');
+      expect(eyes.compatibleBodies).toContain('chibi');
+      expect(torso.compatibleBodies).toContain('chibi');
     });
 
     it('should have transparent background', () => {
