@@ -3686,6 +3686,101 @@ function compositePart(canvas, part, anchorX, anchorY) {
   }
 }
 
+// src/export/sheet.ts
+function packSheet(frames, layout, padding = 0) {
+  if (frames.length === 0) {
+    return {
+      buffer: new Uint8Array(0),
+      width: 0,
+      height: 0,
+      metadata: {
+        frames: [],
+        tileWidth: 0,
+        tileHeight: 0
+      }
+    };
+  }
+  const maxWidth = Math.max(...frames.map((f) => f.width));
+  const maxHeight = Math.max(...frames.map((f) => f.height));
+  let sheetWidth;
+  let sheetHeight;
+  let cols;
+  let rows;
+  if (layout === "grid") {
+    cols = Math.ceil(Math.sqrt(frames.length));
+    rows = Math.ceil(frames.length / cols);
+    sheetWidth = cols * maxWidth + (cols - 1) * padding;
+    sheetHeight = rows * maxHeight + (rows - 1) * padding;
+  } else if (layout === "strip-horizontal") {
+    cols = frames.length;
+    rows = 1;
+    sheetWidth = frames.length * maxWidth + (frames.length - 1) * padding;
+    sheetHeight = maxHeight;
+  } else if (layout === "strip-vertical") {
+    cols = 1;
+    rows = frames.length;
+    sheetWidth = maxWidth;
+    sheetHeight = frames.length * maxHeight + (frames.length - 1) * padding;
+  } else {
+    throw new Error(`Unknown layout: ${layout}`);
+  }
+  const outputCanvas = createCanvas(sheetWidth, sheetHeight);
+  const frameMetadata = [];
+  frames.forEach((frame, index) => {
+    let destX;
+    let destY;
+    if (layout === "grid") {
+      const col = index % cols;
+      const row = Math.floor(index / cols);
+      destX = col * (maxWidth + padding);
+      destY = row * (maxHeight + padding);
+    } else if (layout === "strip-horizontal") {
+      destX = index * (maxWidth + padding);
+      destY = 0;
+    } else if (layout === "strip-vertical") {
+      destX = 0;
+      destY = index * (maxHeight + padding);
+    } else {
+      throw new Error(`Unknown layout: ${layout}`);
+    }
+    for (let y = 0; y < frame.height; y++) {
+      for (let x = 0; x < frame.width; x++) {
+        const pixel = getPixel(frame.buffer, frame.width, x, y);
+        setPixel(outputCanvas.buffer, sheetWidth, destX + x, destY + y, pixel.r, pixel.g, pixel.b, pixel.a);
+      }
+    }
+    const frameName = frame.name ?? `frame_${index}`;
+    frameMetadata.push({
+      name: frameName,
+      x: destX,
+      y: destY,
+      w: frame.width,
+      h: frame.height
+    });
+  });
+  return {
+    buffer: outputCanvas.buffer,
+    width: sheetWidth,
+    height: sheetHeight,
+    metadata: {
+      frames: frameMetadata,
+      tileWidth: maxWidth,
+      tileHeight: maxHeight
+    }
+  };
+}
+function generateTiledMetadata(sheetMeta, imagePath, imageWidth, imageHeight) {
+  return {
+    image: imagePath,
+    imageWidth,
+    imageHeight,
+    frames: sheetMeta.frames.map((frame) => ({ ...frame })),
+    // Deep copy frames
+    tileWidth: sheetMeta.tileWidth,
+    tileHeight: sheetMeta.tileHeight
+  };
+}
+
 // src/cli/char-commands.ts
 function getCharsDir() {
   return join(process.cwd(), "chars");
@@ -3928,33 +4023,95 @@ function createCharRemoveCommand() {
   });
 }
 function createCharExportCommand() {
-  return new Command("export").description("Export character data").argument("<name>", "Character name").option("--output <path>", "Output JSON path (default: chars/<name>/export.json)").option("--include-renders", "Include rendered images in export").action(async (name, options) => {
+  return new Command("export").description("Export character data or sprite sheet").argument("<name>", "Character name").option("--format <format>", "Export format: json or sheet", "json").option("--layout <layout>", "Sheet layout (grid-8dir, strip-horizontal, strip-vertical)", "grid-8dir").option("--padding <pixels>", "Padding between frames in pixels (sheet format only)", "0").option("--output <path>", "Output JSON path (json format only, default: chars/<name>/export.json)").option("--include-renders", "Include rendered images in export (json format only)").action(async (name, options) => {
     try {
-      const character = loadCharacterFromDisk(name);
-      const outputPath = options.output ?? join(getCharDir(name), "export.json");
-      mkdirSync(dirname(outputPath), { recursive: true });
-      const exportData = saveCharacter(character);
-      writeFileSync(outputPath, exportData, "utf-8");
-      if (options.includeRenders === true) {
-        const baseBody = createBaseBody(character.build, character.height);
-        const assembled = assembleCharacter(baseBody, character.equippedParts, character.colorScheme);
-        const renderPath = outputPath.replace(".json", ".png");
-        await writePNG({
-          buffer: assembled.buffer,
-          width: assembled.width,
-          height: assembled.height
-        }, renderPath);
-        console.log(`Exported character with renders to ${dirname(outputPath)}`);
-      } else if (options.output !== void 0 && options.output !== "") {
-        console.log(`Exported character to ${outputPath}`);
+      const format = options.format ?? "json";
+      if (format === "sheet") {
+        let layout = options.layout ?? "grid-8dir";
+        const padding = parseInt(options.padding ?? "0", 10);
+        if (layout === "grid-8dir") {
+          layout = "grid";
+        }
+        if (!["grid", "strip-horizontal", "strip-vertical"].includes(layout)) {
+          throw new Error(`Invalid layout: ${layout}. Valid options: grid-8dir, strip-horizontal, strip-vertical`);
+        }
+        if (isNaN(padding) || padding < 0) {
+          throw new Error(`Invalid padding: ${options.padding}. Must be a non-negative number`);
+        }
+        await exportCharacterSheet(name, layout, padding);
+      } else if (format === "json") {
+        const character = loadCharacterFromDisk(name);
+        const outputPath = options.output ?? join(getCharDir(name), "export.json");
+        mkdirSync(dirname(outputPath), { recursive: true });
+        const exportData = saveCharacter(character);
+        writeFileSync(outputPath, exportData, "utf-8");
+        if (options.includeRenders === true) {
+          const baseBody = createBaseBody(character.build, character.height);
+          const assembled = assembleCharacter(baseBody, character.equippedParts, character.colorScheme);
+          const renderPath = outputPath.replace(".json", ".png");
+          await writePNG({
+            buffer: assembled.buffer,
+            width: assembled.width,
+            height: assembled.height
+          }, renderPath);
+          console.log(`Exported character with renders to ${dirname(outputPath)}`);
+        } else if (options.output !== void 0 && options.output !== "") {
+          console.log(`Exported character to ${outputPath}`);
+        } else {
+          console.log(`Exported character: ${name}`);
+        }
       } else {
-        console.log(`Exported character: ${name}`);
+        throw new Error(`Invalid format: ${format}. Valid options: json, sheet`);
       }
     } catch (error) {
       console.error("Error exporting character:", error instanceof Error ? error.message : String(error));
       process.exit(1);
     }
   });
+}
+async function exportCharacterSheet(characterName, layout = "grid", padding = 0) {
+  const character = loadCharacterFromDisk(characterName);
+  const frames = [];
+  for (const direction of ALL_VIEW_DIRECTIONS) {
+    const baseBody = createBaseBody(character.build, character.height);
+    const assembled = assembleCharacter(
+      baseBody,
+      character.equippedParts,
+      character.colorScheme,
+      direction
+    );
+    frames.push({
+      buffer: assembled.buffer,
+      width: assembled.width,
+      height: assembled.height,
+      name: direction
+    });
+  }
+  const sheet = packSheet(frames, layout, padding);
+  const exportsDir = join(getCharDir(characterName), "exports");
+  if (!existsSync(exportsDir)) {
+    mkdirSync(exportsDir, { recursive: true });
+  }
+  const pngPath = join(exportsDir, `${characterName}-sheet.png`);
+  await writePNG({
+    buffer: sheet.buffer,
+    width: sheet.width,
+    height: sheet.height
+  }, pngPath);
+  const jsonPath = join(exportsDir, `${characterName}-sheet.json`);
+  writeFileSync(jsonPath, JSON.stringify(sheet.metadata, null, 2));
+  const tiledMetadata = generateTiledMetadata(
+    sheet.metadata,
+    `${characterName}-sheet.png`,
+    sheet.width,
+    sheet.height
+  );
+  const tiledPath = join(exportsDir, `${characterName}-tiled.json`);
+  writeFileSync(tiledPath, JSON.stringify(tiledMetadata, null, 2));
+  console.log(`Exported sprite sheet to:`);
+  console.log(`  PNG: ${pngPath}`);
+  console.log(`  Metadata: ${jsonPath}`);
+  console.log(`  Tiled: ${tiledPath}`);
 }
 async function renderMultiView(character, viewsString) {
   const directions = parseViewDirections(viewsString);
@@ -4016,6 +4173,74 @@ function addCharCommands(program) {
   charCmd.addCommand(createCharRemoveCommand());
   charCmd.addCommand(createCharExportCommand());
 }
+async function exportCharacterSheet2(characterName, layout = "grid", padding = 0, workingDir = process.cwd()) {
+  const characterPath = resolve(workingDir, "chars", characterName, "char.json");
+  if (!existsSync(characterPath)) {
+    throw new Error(`Character not found: ${characterName}`);
+  }
+  const characterJson = readFileSync(characterPath, "utf-8");
+  const character = loadCharacter(characterJson);
+  const frames = [];
+  const baseBody = createBaseBody(character.build, character.height);
+  for (const direction of ALL_VIEW_DIRECTIONS) {
+    const assembled = assembleCharacter(
+      baseBody,
+      character.equippedParts,
+      character.colorScheme,
+      direction
+    );
+    frames.push({
+      buffer: assembled.buffer,
+      width: assembled.width,
+      height: assembled.height,
+      name: direction
+    });
+  }
+  const sheet = packSheet(frames, layout, padding);
+  const exportsDir = resolve(workingDir, "chars", characterName, "exports");
+  if (!existsSync(exportsDir)) {
+    mkdirSync(exportsDir, { recursive: true });
+  }
+  const pngPath = resolve(exportsDir, `${characterName}-sheet.png`);
+  await writePNG({
+    buffer: sheet.buffer,
+    width: sheet.width,
+    height: sheet.height
+  }, pngPath);
+  const jsonPath = resolve(exportsDir, `${characterName}-sheet.json`);
+  writeFileSync(jsonPath, JSON.stringify(sheet.metadata, null, 2));
+  const tiledMetadata = generateTiledMetadata(
+    sheet.metadata,
+    `${characterName}-sheet.png`,
+    sheet.width,
+    sheet.height
+  );
+  const tiledPath = resolve(exportsDir, `${characterName}-tiled.json`);
+  writeFileSync(tiledPath, JSON.stringify(tiledMetadata, null, 2));
+  console.log(`Exported sprite sheet to:`);
+  console.log(`  PNG: ${pngPath}`);
+  console.log(`  Metadata: ${jsonPath}`);
+  console.log(`  Tiled: ${tiledPath}`);
+}
+function addExportCommands(program) {
+  const exportCmd = program.command("export").description("Export sprites, animations, and assets");
+  exportCmd.command("sheet").description("Export character as sprite sheet").argument("<char-name>", "Character name to export").option("--layout <layout>", "Sheet layout: grid, strip-horizontal, strip-vertical", "grid").option("--padding <pixels>", "Padding between frames in pixels", "0").action(async (charName, options) => {
+    try {
+      const layout = options.layout ?? "grid";
+      const padding = parseInt(options.padding ?? "0", 10);
+      if (!["grid", "strip-horizontal", "strip-vertical"].includes(layout)) {
+        throw new Error(`Invalid layout: ${layout}. Valid options: grid, strip-horizontal, strip-vertical`);
+      }
+      if (isNaN(padding) || padding < 0) {
+        throw new Error(`Invalid padding: ${options.padding}. Must be a non-negative number`);
+      }
+      await exportCharacterSheet2(charName, layout, padding);
+    } catch (error) {
+      console.error(`Error: ${error instanceof Error ? error.message : String(error)}`);
+      process.exit(1);
+    }
+  });
+}
 
 // src/cli/index.ts
 function getVersion() {
@@ -4036,6 +4261,7 @@ function createProgram() {
   addPaletteCommands(program);
   addProjectCommands(program);
   addCharCommands(program);
+  addExportCommands(program);
   return program;
 }
 function main() {
