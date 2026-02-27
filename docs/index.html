@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PXL — AI-First Pixel Art Toolkit</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Courier New', monospace;
+            background: #0a0a0a;
+            color: #e0e0e0;
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        header {
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            padding: 60px 0;
+            text-align: center;
+            border-bottom: 3px solid #00ff88;
+        }
+
+        .header-title {
+            font-size: 4rem;
+            font-weight: bold;
+            color: #00ff88;
+            text-shadow: 0 0 20px #00ff88;
+            margin-bottom: 20px;
+            letter-spacing: 2px;
+        }
+
+        .header-subtitle {
+            font-size: 1.5rem;
+            color: #888;
+            margin-bottom: 30px;
+        }
+
+        .header-description {
+            max-width: 800px;
+            margin: 0 auto;
+            font-size: 1.1rem;
+            color: #ccc;
+            line-height: 1.8;
+        }
+
+        .showcase {
+            padding: 80px 0;
+        }
+
+        .showcase-title {
+            text-align: center;
+            font-size: 2.5rem;
+            color: #00ff88;
+            margin-bottom: 60px;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+        }
+
+        .characters-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 40px;
+            margin-top: 40px;
+        }
+
+        .character-card {
+            background: linear-gradient(145deg, #1a1a1a, #2a2a2a);
+            border-radius: 16px;
+            padding: 30px;
+            border: 2px solid #333;
+            transition: all 0.3s ease;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        .character-card:hover {
+            border-color: #00ff88;
+            box-shadow: 0 15px 40px rgba(0, 255, 136, 0.2);
+            transform: translateY(-5px);
+        }
+
+        .character-name {
+            font-size: 1.8rem;
+            color: #00ff88;
+            font-weight: bold;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+            text-align: center;
+            letter-spacing: 1px;
+        }
+
+        .character-description {
+            color: #aaa;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 0.9rem;
+        }
+
+        .character-visuals {
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+        }
+
+        .front-render {
+            text-align: center;
+        }
+
+        .front-render img {
+            image-rendering: pixelated;
+            image-rendering: -moz-crisp-edges;
+            image-rendering: crisp-edges;
+            width: auto;
+            height: 160px;
+            border: 2px solid #444;
+            border-radius: 8px;
+            background: #222;
+            padding: 10px;
+        }
+
+        .sprite-sheets {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+        }
+
+        .sprite-section {
+            background: #1a1a1a;
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid #333;
+        }
+
+        .sprite-label {
+            font-size: 0.9rem;
+            color: #00ff88;
+            font-weight: bold;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .sprite-section img {
+            image-rendering: pixelated;
+            image-rendering: -moz-crisp-edges;
+            image-rendering: crisp-edges;
+            width: 100%;
+            height: auto;
+            border: 1px solid #444;
+            border-radius: 6px;
+            background: #222;
+        }
+
+        .grid-sprite {
+            max-width: 300px;
+            margin: 0 auto;
+            display: block;
+        }
+
+        .strip-sprite {
+            max-height: 80px;
+        }
+
+        footer {
+            background: #0f0f0f;
+            padding: 40px 0;
+            text-align: center;
+            border-top: 1px solid #333;
+            color: #666;
+        }
+
+        .footer-text {
+            font-size: 0.9rem;
+        }
+
+        .footer-link {
+            color: #00ff88;
+            text-decoration: none;
+        }
+
+        .footer-link:hover {
+            text-decoration: underline;
+        }
+
+        @media (max-width: 768px) {
+            .header-title {
+                font-size: 2.5rem;
+            }
+            
+            .characters-grid {
+                grid-template-columns: 1fr;
+                gap: 30px;
+            }
+
+            .character-card {
+                padding: 20px;
+            }
+
+            .front-render img {
+                height: 120px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1 class="header-title">PXL</h1>
+            <div class="header-subtitle">AI-First Pixel Art Toolkit</div>
+            <div class="header-description">
+                PXL is a cutting-edge toolkit for creating pixel art characters with AI assistance. 
+                Design diverse characters with different builds, heights, hairstyles, and outfits. 
+                Export animations as sprite sheets and bring your creations to life in games and interactive media.
+                Built for developers, artists, and creators who want to rapidly prototype pixel art assets with precision and style.
+            </div>
+        </div>
+    </header>
+
+    <main class="showcase">
+        <div class="container">
+            <h2 class="showcase-title">Character Showcase</h2>
+            
+            <div class="characters-grid">
+                <!-- Warrior -->
+                <div class="character-card">
+                    <h3 class="character-name">Warrior</h3>
+                    <div class="character-description">Muscular • Tall • Spiky Hair • Armor • Red & Black</div>
+                    <div class="character-visuals">
+                        <div class="front-render">
+                            <img src="sprites/warrior-front.png" alt="Warrior front view">
+                        </div>
+                        <div class="sprite-sheets">
+                            <div class="sprite-section">
+                                <div class="sprite-label">Sprite Sheet (Grid)</div>
+                                <img src="sprites/warrior-grid.png" alt="Warrior sprite sheet grid" class="grid-sprite">
+                            </div>
+                            <div class="sprite-section">
+                                <div class="sprite-label">Animation Strip</div>
+                                <img src="sprites/warrior-strip.png" alt="Warrior animation strip" class="strip-sprite">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Mage -->
+                <div class="character-card">
+                    <h3 class="character-name">Mage</h3>
+                    <div class="character-description">Skinny • Tall • Long Hair • Robe • Purple & White</div>
+                    <div class="character-visuals">
+                        <div class="front-render">
+                            <img src="sprites/mage-front.png" alt="Mage front view">
+                        </div>
+                        <div class="sprite-sheets">
+                            <div class="sprite-section">
+                                <div class="sprite-label">Sprite Sheet (Grid)</div>
+                                <img src="sprites/mage-grid.png" alt="Mage sprite sheet grid" class="grid-sprite">
+                            </div>
+                            <div class="sprite-section">
+                                <div class="sprite-label">Animation Strip</div>
+                                <img src="sprites/mage-strip.png" alt="Mage animation strip" class="strip-sprite">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Ranger -->
+                <div class="character-card">
+                    <h3 class="character-name">Ranger</h3>
+                    <div class="character-description">Normal • Average • Curly Hair • Basic Shirt • Green & Brown</div>
+                    <div class="character-visuals">
+                        <div class="front-render">
+                            <img src="sprites/ranger-front.png" alt="Ranger front view">
+                        </div>
+                        <div class="sprite-sheets">
+                            <div class="sprite-section">
+                                <div class="sprite-label">Sprite Sheet (Grid)</div>
+                                <img src="sprites/ranger-grid.png" alt="Ranger sprite sheet grid" class="grid-sprite">
+                            </div>
+                            <div class="sprite-section">
+                                <div class="sprite-label">Animation Strip</div>
+                                <img src="sprites/ranger-strip.png" alt="Ranger animation strip" class="strip-sprite">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Knight -->
+                <div class="character-card">
+                    <h3 class="character-name">Knight</h3>
+                    <div class="character-description">Muscular • Average • Spiky Hair • Armor • Blue & Gray</div>
+                    <div class="character-visuals">
+                        <div class="front-render">
+                            <img src="sprites/knight-front.png" alt="Knight front view">
+                        </div>
+                        <div class="sprite-sheets">
+                            <div class="sprite-section">
+                                <div class="sprite-label">Sprite Sheet (Grid)</div>
+                                <img src="sprites/knight-grid.png" alt="Knight sprite sheet grid" class="grid-sprite">
+                            </div>
+                            <div class="sprite-section">
+                                <div class="sprite-label">Animation Strip</div>
+                                <img src="sprites/knight-strip.png" alt="Knight animation strip" class="strip-sprite">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Healer -->
+                <div class="character-card">
+                    <h3 class="character-name">Healer</h3>
+                    <div class="character-description">Skinny • Short • Long Hair • Robe • White & Green</div>
+                    <div class="character-visuals">
+                        <div class="front-render">
+                            <img src="sprites/healer-front.png" alt="Healer front view">
+                        </div>
+                        <div class="sprite-sheets">
+                            <div class="sprite-section">
+                                <div class="sprite-label">Sprite Sheet (Grid)</div>
+                                <img src="sprites/healer-grid.png" alt="Healer sprite sheet grid" class="grid-sprite">
+                            </div>
+                            <div class="sprite-section">
+                                <div class="sprite-label">Animation Strip</div>
+                                <img src="sprites/healer-strip.png" alt="Healer animation strip" class="strip-sprite">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Rogue -->
+                <div class="character-card">
+                    <h3 class="character-name">Rogue</h3>
+                    <div class="character-description">Normal • Short • Spiky Hair • Basic Shirt • Black & Red</div>
+                    <div class="character-visuals">
+                        <div class="front-render">
+                            <img src="sprites/rogue-front.png" alt="Rogue front view">
+                        </div>
+                        <div class="sprite-sheets">
+                            <div class="sprite-section">
+                                <div class="sprite-label">Sprite Sheet (Grid)</div>
+                                <img src="sprites/rogue-grid.png" alt="Rogue sprite sheet grid" class="grid-sprite">
+                            </div>
+                            <div class="sprite-section">
+                                <div class="sprite-label">Animation Strip</div>
+                                <img src="sprites/rogue-strip.png" alt="Rogue animation strip" class="strip-sprite">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Scholar -->
+                <div class="character-card">
+                    <h3 class="character-name">Scholar</h3>
+                    <div class="character-description">Skinny • Average • Curly Hair • Robe • Blue & White</div>
+                    <div class="character-visuals">
+                        <div class="front-render">
+                            <img src="sprites/scholar-front.png" alt="Scholar front view">
+                        </div>
+                        <div class="sprite-sheets">
+                            <div class="sprite-section">
+                                <div class="sprite-label">Sprite Sheet (Grid)</div>
+                                <img src="sprites/scholar-grid.png" alt="Scholar sprite sheet grid" class="grid-sprite">
+                            </div>
+                            <div class="sprite-section">
+                                <div class="sprite-label">Animation Strip</div>
+                                <img src="sprites/scholar-strip.png" alt="Scholar animation strip" class="strip-sprite">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Berserker -->
+                <div class="character-card">
+                    <h3 class="character-name">Berserker</h3>
+                    <div class="character-description">Muscular • Tall • Long Hair • Armor • Orange & Black</div>
+                    <div class="character-visuals">
+                        <div class="front-render">
+                            <img src="sprites/berserker-front.png" alt="Berserker front view">
+                        </div>
+                        <div class="sprite-sheets">
+                            <div class="sprite-section">
+                                <div class="sprite-label">Sprite Sheet (Grid)</div>
+                                <img src="sprites/berserker-grid.png" alt="Berserker sprite sheet grid" class="grid-sprite">
+                            </div>
+                            <div class="sprite-section">
+                                <div class="sprite-label">Animation Strip</div>
+                                <img src="sprites/berserker-strip.png" alt="Berserker animation strip" class="strip-sprite">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Merchant -->
+                <div class="character-card">
+                    <h3 class="character-name">Merchant</h3>
+                    <div class="character-description">Normal • Tall • Curly Hair • Basic Shirt • Orange & White</div>
+                    <div class="character-visuals">
+                        <div class="front-render">
+                            <img src="sprites/merchant-front.png" alt="Merchant front view">
+                        </div>
+                        <div class="sprite-sheets">
+                            <div class="sprite-section">
+                                <div class="sprite-label">Sprite Sheet (Grid)</div>
+                                <img src="sprites/merchant-grid.png" alt="Merchant sprite sheet grid" class="grid-sprite">
+                            </div>
+                            <div class="sprite-section">
+                                <div class="sprite-label">Animation Strip</div>
+                                <img src="sprites/merchant-strip.png" alt="Merchant animation strip" class="strip-sprite">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Ninja -->
+                <div class="character-card">
+                    <h3 class="character-name">Ninja</h3>
+                    <div class="character-description">Skinny • Short • Spiky Hair • Basic Shirt • Black & Gray</div>
+                    <div class="character-visuals">
+                        <div class="front-render">
+                            <img src="sprites/ninja-front.png" alt="Ninja front view">
+                        </div>
+                        <div class="sprite-sheets">
+                            <div class="sprite-section">
+                                <div class="sprite-label">Sprite Sheet (Grid)</div>
+                                <img src="sprites/ninja-grid.png" alt="Ninja sprite sheet grid" class="grid-sprite">
+                            </div>
+                            <div class="sprite-section">
+                                <div class="sprite-label">Animation Strip</div>
+                                <img src="sprites/ninja-strip.png" alt="Ninja animation strip" class="strip-sprite">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Paladin -->
+                <div class="character-card">
+                    <h3 class="character-name">Paladin</h3>
+                    <div class="character-description">Muscular • Average • Curly Hair • Armor • White & Blue</div>
+                    <div class="character-visuals">
+                        <div class="front-render">
+                            <img src="sprites/paladin-front.png" alt="Paladin front view">
+                        </div>
+                        <div class="sprite-sheets">
+                            <div class="sprite-section">
+                                <div class="sprite-label">Sprite Sheet (Grid)</div>
+                                <img src="sprites/paladin-grid.png" alt="Paladin sprite sheet grid" class="grid-sprite">
+                            </div>
+                            <div class="sprite-section">
+                                <div class="sprite-label">Animation Strip</div>
+                                <img src="sprites/paladin-strip.png" alt="Paladin animation strip" class="strip-sprite">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Witch -->
+                <div class="character-card">
+                    <h3 class="character-name">Witch</h3>
+                    <div class="character-description">Normal • Average • Long Hair • Robe • Purple & Black</div>
+                    <div class="character-visuals">
+                        <div class="front-render">
+                            <img src="sprites/witch-front.png" alt="Witch front view">
+                        </div>
+                        <div class="sprite-sheets">
+                            <div class="sprite-section">
+                                <div class="sprite-label">Sprite Sheet (Grid)</div>
+                                <img src="sprites/witch-grid.png" alt="Witch sprite sheet grid" class="grid-sprite">
+                            </div>
+                            <div class="sprite-section">
+                                <div class="sprite-label">Animation Strip</div>
+                                <img src="sprites/witch-strip.png" alt="Witch animation strip" class="strip-sprite">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <div class="container">
+            <div class="footer-text">
+                Created with <a href="https://github.com/pybot49-gif/pxl" class="footer-link">PXL</a> • 
+                AI-First Pixel Art Toolkit • 
+                <a href="https://github.com/pybot49-gif/pxl" class="footer-link">View on GitHub</a>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

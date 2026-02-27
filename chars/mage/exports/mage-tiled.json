@@ -1,0 +1,65 @@
+{
+  "image": "mage-sheet.png",
+  "imageWidth": 263,
+  "imageHeight": 48,
+  "frames": [
+    {
+      "name": "front",
+      "x": 0,
+      "y": 0,
+      "w": 32,
+      "h": 48
+    },
+    {
+      "name": "back",
+      "x": 33,
+      "y": 0,
+      "w": 32,
+      "h": 48
+    },
+    {
+      "name": "left",
+      "x": 66,
+      "y": 0,
+      "w": 32,
+      "h": 48
+    },
+    {
+      "name": "right",
+      "x": 99,
+      "y": 0,
+      "w": 32,
+      "h": 48
+    },
+    {
+      "name": "front-left",
+      "x": 132,
+      "y": 0,
+      "w": 32,
+      "h": 48
+    },
+    {
+      "name": "front-right",
+      "x": 165,
+      "y": 0,
+      "w": 32,
+      "h": 48
+    },
+    {
+      "name": "back-left",
+      "x": 198,
+      "y": 0,
+      "w": 32,
+      "h": 48
+    },
+    {
+      "name": "back-right",
+      "x": 231,
+      "y": 0,
+      "w": 32,
+      "h": 48
+    }
+  ],
+  "tileWidth": 32,
+  "tileHeight": 48
+}
