@@ -2183,7 +2183,268 @@ var COLORS = {
   // #AA2828 - darker red
   armor: { r: 160, g: 160, b: 160, a: 255 },
   // #A0A0A0 - gray armor
-  armorShadow: { r: 120, g: 120, b: 120, a: 255 }};
+  armorShadow: { r: 120, g: 120, b: 120, a: 255 },
+  // #787878 - darker gray
+  // Outline
+  outline: { r: 42, g: 42, b: 42, a: 255 }
+  // #2A2A2A - dark outline
+};
+function renderPixelMapWithRegions(canvas, pixelMap, palette, colorRegions, primaryIndices, shadowIndices, highlightIndices) {
+  for (let y = 0; y < pixelMap.length && y < canvas.height; y++) {
+    const row = pixelMap[y];
+    if (row === void 0) {
+      continue;
+    }
+    for (let x = 0; x < row.length && x < canvas.width; x++) {
+      const colorIndex = row[x];
+      if (colorIndex === void 0 || colorIndex === 0) {
+        continue;
+      }
+      const color = palette[colorIndex];
+      if (color !== void 0) {
+        setPixel(canvas.buffer, canvas.width, x, y, color.r, color.g, color.b, color.a);
+        if (primaryIndices.includes(colorIndex)) {
+          colorRegions.primary.push([x, y]);
+        } else if (shadowIndices.includes(colorIndex)) {
+          colorRegions.shadow.push([x, y]);
+        } else if (highlightIndices?.includes(colorIndex) === true) {
+          colorRegions.highlight ??= [];
+          colorRegions.highlight.push([x, y]);
+        }
+      }
+    }
+  }
+}
+var SPIKY_HAIR_FRONT = [
+  // Top spikes (rows 0-7)
+  [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 1, 1, 2, 2, 2, 1, 1, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0],
+  [0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0],
+  [0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0],
+  // Mid hair with shadows (rows 8-15)
+  [1, 2, 2, 2, 2, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 2, 2, 2, 2, 1, 0, 0, 0],
+  [1, 2, 2, 2, 2, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 2, 2, 2, 2, 1, 0, 0, 0],
+  [1, 2, 2, 2, 2, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 2, 2, 2, 2, 1, 0, 0, 0],
+  [1, 2, 2, 2, 2, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 2, 2, 2, 2, 1, 0, 0, 0],
+  [1, 2, 2, 2, 2, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 2, 2, 2, 2, 1, 0, 0, 0],
+  [0, 1, 2, 2, 2, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 2, 2, 2, 1, 0, 0, 0, 0],
+  [0, 0, 1, 2, 2, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 2, 2, 1, 0, 0, 0, 0, 0],
+  [0, 0, 0, 1, 1, 3, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 3, 3, 1, 1, 1, 0, 0, 0, 0, 0, 0],
+  // Fill rest with empty rows
+  ...Array(32).fill([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+];
+var LONG_HAIR_FRONT = [
+  // Top of hair (rows 0-4) 
+  [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0],
+  [0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0],
+  // Upper hair area (rows 5-10)
+  [0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0],
+  [0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0],
+  [1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1],
+  [1, 2, 2, 2, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 2, 2, 2, 2, 1],
+  [1, 2, 2, 2, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 2, 2, 2, 2, 1],
+  [1, 2, 2, 2, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 2, 2, 2, 2, 1],
+  // Mid hair flowing down (rows 11-20)
+  [1, 2, 2, 2, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 2, 2, 2, 2, 1],
+  [1, 2, 2, 2, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 2, 2, 2, 2, 1],
+  [1, 2, 2, 2, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 2, 2, 2, 2, 1],
+  [1, 2, 2, 2, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 2, 2, 2, 2, 1],
+  [1, 2, 2, 2, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 2, 2, 2, 2, 1],
+  [1, 2, 2, 2, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 2, 2, 2, 2, 1],
+  [1, 2, 2, 2, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 2, 2, 2, 2, 1],
+  [1, 2, 2, 2, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 2, 2, 2, 2, 1],
+  [1, 2, 2, 2, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 2, 2, 2, 2, 1],
+  [1, 2, 2, 2, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 2, 2, 2, 2, 1],
+  // Lower flowing hair (rows 21-30)
+  [0, 1, 2, 2, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 2, 2, 1, 0, 0],
+  [0, 1, 2, 2, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 2, 2, 1, 0, 0],
+  [0, 0, 1, 2, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 2, 1, 0, 0, 0],
+  [0, 0, 1, 2, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 2, 1, 0, 0, 0],
+  [0, 0, 0, 1, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 1, 0, 0, 0, 0, 0],
+  [0, 0, 0, 1, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 1, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 1, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 1, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  // Flowing ends with waves (rows 31-40)  
+  [0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  // Empty rows to fill 48
+  ...Array(12).fill([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+];
+var CURLY_HAIR_FRONT = [
+  // Top curls (rows 0-6)
+  [0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 1, 1, 2, 2, 2, 2, 2, 2, 1, 1, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0],
+  [0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0],
+  [0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0],
+  [1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0],
+  // Mid curls with volume (rows 7-15)
+  [1, 2, 2, 2, 2, 3, 3, 2, 2, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 2, 3, 3, 2, 2, 2, 2, 1, 0, 0],
+  [1, 2, 2, 2, 2, 3, 3, 2, 2, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 2, 3, 3, 2, 2, 2, 2, 1, 0, 0],
+  [1, 2, 2, 2, 2, 3, 3, 2, 2, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 2, 3, 3, 2, 2, 2, 2, 1, 0, 0],
+  [1, 2, 2, 2, 2, 3, 3, 2, 2, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 2, 3, 3, 2, 2, 2, 2, 1, 0, 0],
+  [1, 2, 2, 2, 2, 3, 3, 2, 2, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 2, 3, 3, 2, 2, 2, 2, 1, 0, 0],
+  [1, 2, 2, 2, 2, 3, 3, 2, 2, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 2, 3, 3, 2, 2, 2, 2, 1, 0, 0],
+  [0, 1, 2, 2, 2, 3, 3, 2, 2, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 2, 3, 3, 2, 2, 2, 1, 0, 0, 0],
+  [0, 1, 2, 2, 2, 3, 3, 2, 2, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 2, 3, 3, 2, 2, 2, 1, 0, 0, 0],
+  [0, 0, 1, 1, 1, 3, 3, 1, 1, 3, 3, 1, 1, 1, 1, 1, 1, 1, 1, 3, 3, 1, 1, 3, 3, 1, 1, 1, 0, 0, 0, 0],
+  // Side curls (rows 16-25)
+  [0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0],
+  [0, 0, 1, 2, 2, 2, 1, 0, 1, 2, 2, 1, 0, 0, 0, 0, 0, 0, 1, 2, 2, 1, 0, 1, 2, 2, 2, 1, 0, 0, 0, 0],
+  [0, 1, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 1, 0, 0, 0, 0, 1, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0],
+  [0, 1, 2, 2, 3, 2, 2, 2, 2, 3, 2, 2, 2, 1, 0, 0, 1, 2, 2, 3, 2, 2, 2, 2, 3, 2, 2, 2, 1, 0, 0, 0],
+  [0, 1, 2, 2, 3, 3, 2, 2, 2, 3, 3, 2, 2, 2, 1, 1, 2, 2, 3, 3, 2, 2, 2, 3, 3, 2, 2, 2, 1, 0, 0, 0],
+  [0, 0, 1, 2, 3, 3, 2, 2, 2, 3, 3, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 2, 2, 3, 3, 2, 1, 0, 0, 0, 0, 0],
+  [0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0],
+  [0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  // Empty rows to fill 48
+  ...Array(22).fill([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+];
+var ROUND_EYES_FRONT = [
+  ...Array(10).fill([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+  // Eyes start at row 10
+  [0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 1, 5, 5, 5, 5, 5, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 5, 5, 5, 5, 5, 1, 0, 0, 0, 0, 0],
+  [0, 0, 0, 1, 5, 5, 5, 2, 5, 5, 5, 1, 0, 0, 0, 0, 0, 0, 0, 1, 5, 5, 5, 2, 5, 5, 5, 1, 0, 0, 0, 0],
+  [0, 0, 0, 1, 5, 5, 2, 3, 2, 5, 5, 1, 0, 0, 0, 0, 0, 0, 0, 1, 5, 5, 2, 3, 2, 5, 5, 1, 0, 0, 0, 0],
+  [0, 0, 0, 1, 5, 5, 5, 2, 5, 5, 5, 1, 0, 0, 0, 0, 0, 0, 0, 1, 5, 5, 5, 2, 5, 5, 5, 1, 0, 0, 0, 0],
+  [0, 0, 0, 0, 1, 5, 5, 5, 5, 5, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 5, 5, 5, 5, 5, 1, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0],
+  ...Array(31).fill([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+];
+var ANIME_EYES_FRONT = [
+  ...Array(9).fill([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+  // Larger anime eyes starting row 9
+  [0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 1, 5, 5, 5, 5, 5, 5, 5, 1, 0, 0, 0, 0, 0, 0, 1, 5, 5, 5, 5, 5, 5, 5, 1, 0, 0, 0, 0, 0],
+  [0, 0, 1, 5, 5, 5, 4, 5, 2, 5, 5, 5, 1, 0, 0, 0, 0, 1, 5, 5, 5, 4, 5, 2, 5, 5, 5, 1, 0, 0, 0, 0],
+  [0, 0, 1, 5, 5, 2, 2, 2, 3, 2, 5, 5, 1, 0, 0, 0, 0, 1, 5, 5, 2, 2, 2, 3, 2, 5, 5, 1, 0, 0, 0, 0],
+  [0, 0, 1, 5, 5, 2, 2, 2, 3, 2, 5, 5, 1, 0, 0, 0, 0, 1, 5, 5, 2, 2, 2, 3, 2, 5, 5, 1, 0, 0, 0, 0],
+  [0, 0, 1, 5, 5, 5, 2, 2, 2, 5, 5, 5, 1, 0, 0, 0, 0, 1, 5, 5, 5, 2, 2, 2, 5, 5, 5, 1, 0, 0, 0, 0],
+  [0, 0, 0, 1, 5, 5, 5, 5, 5, 5, 5, 1, 0, 0, 0, 0, 0, 0, 1, 5, 5, 5, 5, 5, 5, 5, 1, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0],
+  ...Array(31).fill([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+];
+var SMALL_EYES_FRONT = [
+  ...Array(12).fill([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+  // Small eyes starting row 12
+  [0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 1, 3, 3, 3, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 3, 3, 3, 1, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+  ...Array(33).fill([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+];
+var BASIC_SHIRT_FRONT = [
+  ...Array(22).fill([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+  // Shirt starts at torso area (row 22)
+  [0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0],
+  [0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0],
+  [0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0],
+  [0, 0, 1, 2, 2, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 2, 2, 1, 0, 0, 0],
+  [0, 0, 1, 2, 2, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 2, 2, 1, 0, 0, 0],
+  [0, 0, 0, 1, 2, 2, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 2, 1, 0, 0, 0, 0, 0],
+  [0, 0, 0, 1, 2, 2, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 2, 1, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 1, 2, 2, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 2, 1, 0, 0, 0, 0, 0, 0],
+  ...Array(16).fill([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+];
+var ARMOR_FRONT = [
+  ...Array(22).fill([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+  // Armor starts at torso area (row 22)
+  [0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 1, 2, 2, 3, 3, 3, 3, 3, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0],
+  [0, 0, 0, 1, 2, 2, 3, 3, 3, 3, 3, 3, 3, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 2, 2, 2, 2, 1, 0, 0, 0, 0],
+  [0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0],
+  [0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0],
+  [0, 0, 1, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2, 2, 2, 1, 0, 0, 0],
+  [0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0],
+  [0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0],
+  [0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0],
+  ...Array(16).fill([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+];
+var ROBE_FRONT = [
+  ...Array(22).fill([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+  // Robe starts at torso area (row 22)
+  [0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0],
+  [0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0],
+  [0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0],
+  [0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0],
+  [0, 0, 1, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2, 2, 2, 1, 0, 0, 0],
+  [0, 0, 0, 1, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2, 2, 2, 1, 0, 0, 0, 0],
+  [0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0],
+  [0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0],
+  // Flowing lower robe (rows 32-40)
+  [0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0],
+  [0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0],
+  [0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0],
+  [0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0],
+  [1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0],
+  [1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0],
+  [0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0],
+  [0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0],
+  [0, 0, 0, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0],
+  // Empty rows to fill 48
+  ...Array(8).fill([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+];
+function getHairPixelMap(style, direction) {
+  switch (style) {
+    case "spiky":
+      return SPIKY_HAIR_FRONT;
+    case "long":
+      return LONG_HAIR_FRONT;
+    case "curly":
+      return CURLY_HAIR_FRONT;
+    default:
+      return SPIKY_HAIR_FRONT;
+  }
+}
+function getEyePixelMap(style, direction) {
+  if (direction === "back") {
+    return Array(48).fill(Array(32).fill(0));
+  }
+  switch (style) {
+    case "round":
+      return ROUND_EYES_FRONT;
+    case "anime":
+      return ANIME_EYES_FRONT;
+    case "small":
+      return SMALL_EYES_FRONT;
+    default:
+      return ROUND_EYES_FRONT;
+  }
+}
+function getTorsoPixelMap(style, direction) {
+  switch (style) {
+    case "basic-shirt":
+      return BASIC_SHIRT_FRONT;
+    case "armor":
+      return ARMOR_FRONT;
+    case "robe":
+      return ROBE_FRONT;
+    default:
+      return BASIC_SHIRT_FRONT;
+  }
+}
 function createHairPart(style, direction = "front") {
   if (!isValidHairStyle(style)) {
     throw new Error(`Invalid hair style: ${style}. Valid styles: spiky, long, curly`);
@@ -2191,20 +2452,37 @@ function createHairPart(style, direction = "front") {
   if (!isValidViewDirection(direction)) {
     throw new Error(`Invalid view direction: ${direction}. Valid directions: front, back, left, right, front-left, front-right, back-left, back-right`);
   }
-  const { width, height } = getHairDimensions(style);
-  const canvas = createCanvas(width, height);
-  const colorRegions = { primary: [], shadow: [] };
-  switch (style) {
-    case "spiky":
-      drawSpikyHair(canvas, colorRegions, direction);
-      break;
-    case "long":
-      drawLongHair(canvas, colorRegions, direction);
-      break;
-    case "curly":
-      drawCurlyHair(canvas, colorRegions, direction);
-      break;
-  }
+  const canvas = createCanvas(32, 48);
+  const colorRegions = {
+    primary: [],
+    shadow: [],
+    highlight: []
+  };
+  const pixelMap = getHairPixelMap(style);
+  const palette = {
+    0: { r: 0, g: 0, b: 0, a: 0 },
+    // transparent
+    1: COLORS.outline,
+    // outline
+    2: COLORS.hair,
+    // hair primary
+    3: COLORS.hairShadow,
+    // hair shadow  
+    4: { r: 130, g: 95, b: 60, a: 255 }
+    // hair highlight (lighter brown)
+  };
+  renderPixelMapWithRegions(
+    canvas,
+    pixelMap,
+    palette,
+    colorRegions,
+    [2],
+    // primary indices
+    [3],
+    // shadow indices
+    [4]
+    // highlight indices
+  );
   return {
     ...canvas,
     id: `hair-${style}`,
@@ -2221,20 +2499,38 @@ function createEyePart(style, direction = "front") {
   if (!isValidViewDirection(direction)) {
     throw new Error(`Invalid view direction: ${direction}. Valid directions: front, back, left, right, front-left, front-right, back-left, back-right`);
   }
-  const { width, height } = getEyeDimensions(style);
-  const canvas = createCanvas(width, height);
-  const colorRegions = { primary: [], shadow: [] };
-  switch (style) {
-    case "round":
-      drawRoundEyes(canvas, colorRegions, direction);
-      break;
-    case "anime":
-      drawAnimeEyes(canvas, colorRegions, direction);
-      break;
-    case "small":
-      drawSmallEyes(canvas, colorRegions, direction);
-      break;
-  }
+  const canvas = createCanvas(32, 48);
+  const colorRegions = {
+    primary: [],
+    shadow: []
+  };
+  const pixelMap = getEyePixelMap(style, direction);
+  const palette = {
+    0: { r: 0, g: 0, b: 0, a: 0 },
+    // transparent
+    1: COLORS.outline,
+    // outline
+    2: COLORS.eyeIris,
+    // iris (primary color)
+    3: COLORS.eyePupil,
+    // pupil (shadow)
+    4: { r: 140, g: 170, b: 220, a: 255 },
+    // iris highlight
+    5: COLORS.eyeWhite
+    // eye white
+  };
+  renderPixelMapWithRegions(
+    canvas,
+    pixelMap,
+    palette,
+    colorRegions,
+    [2],
+    // primary indices (iris)
+    [3],
+    // shadow indices (pupil)
+    [4]
+    // highlight indices
+  );
   return {
     ...canvas,
     id: `eyes-${style}`,
@@ -2251,20 +2547,48 @@ function createTorsoPart(style, direction = "front") {
   if (!isValidViewDirection(direction)) {
     throw new Error(`Invalid view direction: ${direction}. Valid directions: front, back, left, right, front-left, front-right, back-left, back-right`);
   }
-  const { width, height } = getTorsoDimensions(style);
-  const canvas = createCanvas(width, height);
-  const colorRegions = { primary: [], shadow: [] };
-  switch (style) {
-    case "basic-shirt":
-      drawBasicShirt(canvas, colorRegions, direction);
-      break;
-    case "armor":
-      drawArmor(canvas, colorRegions, direction);
-      break;
-    case "robe":
-      drawRobe(canvas, colorRegions, direction);
-      break;
+  const canvas = createCanvas(32, 48);
+  const colorRegions = {
+    primary: [],
+    shadow: []
+  };
+  const pixelMap = getTorsoPixelMap(style);
+  let palette, primaryIndices, shadowIndices;
+  if (style === "armor") {
+    palette = {
+      0: { r: 0, g: 0, b: 0, a: 0 },
+      // transparent
+      1: COLORS.outline,
+      // outline
+      2: COLORS.armor,
+      // armor primary
+      3: COLORS.armorShadow
+      // armor shadow
+    };
+    primaryIndices = [2];
+    shadowIndices = [3];
+  } else {
+    palette = {
+      0: { r: 0, g: 0, b: 0, a: 0 },
+      // transparent
+      1: COLORS.outline,
+      // outline
+      2: COLORS.shirt,
+      // shirt primary
+      3: COLORS.shirtShadow
+      // shirt shadow
+    };
+    primaryIndices = [2];
+    shadowIndices = [3];
   }
+  renderPixelMapWithRegions(
+    canvas,
+    pixelMap,
+    palette,
+    colorRegions,
+    primaryIndices,
+    shadowIndices
+  );
   return {
     ...canvas,
     id: `torso-${style}`,
@@ -2283,609 +2607,6 @@ function isValidEyeStyle(style) {
 function isValidTorsoStyle(style) {
   return ["basic-shirt", "armor", "robe"].includes(style);
 }
-function getHairDimensions(style) {
-  switch (style) {
-    case "spiky":
-      return { width: 16, height: 16 };
-    case "long":
-      return { width: 16, height: 20 };
-    case "curly":
-      return { width: 18, height: 18 };
-  }
-}
-function getEyeDimensions(style) {
-  switch (style) {
-    case "round":
-      return { width: 12, height: 6 };
-    case "anime":
-      return { width: 14, height: 8 };
-    case "small":
-      return { width: 10, height: 4 };
-  }
-}
-function getTorsoDimensions(style) {
-  switch (style) {
-    case "basic-shirt":
-      return { width: 16, height: 20 };
-    case "armor":
-      return { width: 16, height: 20 };
-    case "robe":
-      return { width: 18, height: 24 };
-  }
-}
-function drawSpikyHair(canvas, colorRegions, direction) {
-  const centerX = canvas.width / 2;
-  let spikeOffset = 0;
-  let spikeCount = 3;
-  switch (direction) {
-    case "back":
-      spikeOffset = 1;
-      break;
-    case "left":
-      spikeOffset = -2;
-      spikeCount = 2;
-      break;
-    case "right":
-      spikeOffset = 2;
-      spikeCount = 2;
-      break;
-    case "front-left":
-    case "back-left":
-      spikeOffset = -1;
-      break;
-    case "front-right":
-    case "back-right":
-      spikeOffset = 1;
-      break;
-  }
-  for (let spike = 0; spike < spikeCount; spike++) {
-    const spikeX = Math.floor(centerX + (spike - spikeCount / 2 + 0.5) * 4 + spikeOffset);
-    const spikeHeight = 8 - spike % 2;
-    for (let y = 0; y < spikeHeight; y++) {
-      const width = Math.max(1, spikeHeight - y);
-      for (let x = -width / 2; x <= width / 2; x++) {
-        const pixelX = Math.floor(spikeX + x);
-        const pixelY = y;
-        if (pixelX >= 0 && pixelX < canvas.width && pixelY >= 0 && pixelY < canvas.height) {
-          const color = x === -width / 2 || x === width / 2 ? COLORS.hairShadow : COLORS.hair;
-          setPixel(canvas.buffer, canvas.width, pixelX, pixelY, color.r, color.g, color.b, color.a);
-          if (color === COLORS.hair) {
-            colorRegions.primary.push([pixelX, pixelY]);
-          } else {
-            colorRegions.shadow.push([pixelX, pixelY]);
-          }
-        }
-      }
-    }
-  }
-  drawRect(
-    canvas.buffer,
-    canvas.width,
-    2,
-    8,
-    canvas.width - 2,
-    12,
-    COLORS.hair.r,
-    COLORS.hair.g,
-    COLORS.hair.b,
-    COLORS.hair.a,
-    true
-  );
-  for (let y = 8; y < 12; y++) {
-    for (let x = 2; x < canvas.width - 2; x++) {
-      colorRegions.primary.push([x, y]);
-    }
-  }
-}
-function drawLongHair(canvas, colorRegions, direction) {
-  let hairWidth = canvas.width - 2;
-  let hairOffset = 0;
-  let wavePhase = 0;
-  switch (direction) {
-    case "left":
-      hairWidth = Math.floor(canvas.width * 0.7);
-      hairOffset = -2;
-      wavePhase = Math.PI / 4;
-      break;
-    case "right":
-      hairWidth = Math.floor(canvas.width * 0.7);
-      hairOffset = 2;
-      wavePhase = -Math.PI / 4;
-      break;
-    case "back":
-      wavePhase = Math.PI;
-      break;
-    case "front-left":
-    case "back-left":
-      hairOffset = -1;
-      wavePhase = Math.PI / 8;
-      break;
-    case "front-right":
-    case "back-right":
-      hairOffset = 1;
-      wavePhase = -Math.PI / 8;
-      break;
-  }
-  const hairLeft = Math.max(0, 1 + hairOffset);
-  const hairRight = Math.min(canvas.width, hairLeft + hairWidth);
-  drawRect(
-    canvas.buffer,
-    canvas.width,
-    hairLeft,
-    0,
-    hairRight,
-    canvas.height - 4,
-    COLORS.hair.r,
-    COLORS.hair.g,
-    COLORS.hair.b,
-    COLORS.hair.a,
-    true
-  );
-  for (let x = hairLeft; x < hairRight; x++) {
-    const waveY = canvas.height - 4 + Math.floor(2 * Math.sin(x * 0.8 + wavePhase));
-    if (waveY >= 0 && waveY < canvas.height) {
-      setPixel(canvas.buffer, canvas.width, x, waveY, COLORS.hair.r, COLORS.hair.g, COLORS.hair.b, COLORS.hair.a);
-      colorRegions.primary.push([x, waveY]);
-    }
-  }
-  for (let y = 0; y < canvas.height - 4; y++) {
-    for (let x = hairLeft; x < hairRight; x++) {
-      if (x === hairLeft || x === hairRight - 1) {
-        colorRegions.shadow.push([x, y]);
-      } else {
-        colorRegions.primary.push([x, y]);
-      }
-    }
-  }
-}
-function drawCurlyHair(canvas, colorRegions, direction) {
-  let curlCount = 4;
-  let curlOffsetX = 0;
-  let curlSpacing = 8;
-  switch (direction) {
-    case "left":
-      curlCount = 2;
-      curlOffsetX = -3;
-      break;
-    case "right":
-      curlCount = 2;
-      curlOffsetX = 3;
-      break;
-    case "back":
-      curlSpacing = 6;
-      break;
-    case "front-left":
-    case "back-left":
-      curlOffsetX = -1;
-      break;
-    case "front-right":
-    case "back-right":
-      curlOffsetX = 1;
-      break;
-  }
-  for (let curl = 0; curl < curlCount; curl++) {
-    const curlX = Math.floor(2 + curl % 2 * curlSpacing + (curl < 2 ? 4 : 0) + curlOffsetX);
-    const curlY = Math.floor(2 + Math.floor(curl / 2) * 6);
-    const radius = 3;
-    if (curlX >= 0 && curlX < canvas.width) {
-      drawCircle(
-        canvas.buffer,
-        canvas.width,
-        canvas.height,
-        curlX,
-        curlY,
-        radius,
-        COLORS.hair.r,
-        COLORS.hair.g,
-        COLORS.hair.b,
-        COLORS.hair.a,
-        true
-      );
-      for (let dy = -radius; dy <= radius; dy++) {
-        for (let dx = -radius; dx <= radius; dx++) {
-          if (dx * dx + dy * dy <= radius * radius) {
-            const x = curlX + dx;
-            const y = curlY + dy;
-            if (x >= 0 && x < canvas.width && y >= 0 && y < canvas.height) {
-              if (dx === -radius || dx === radius || dy === -radius || dy === radius) {
-                colorRegions.shadow.push([x, y]);
-              } else {
-                colorRegions.primary.push([x, y]);
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-}
-function drawRoundEyes(canvas, colorRegions, direction) {
-  if (direction === "back") {
-    return;
-  }
-  const eyeRadius = 2;
-  let leftEyeX = Math.floor(canvas.width / 4);
-  let rightEyeX = Math.floor(canvas.width * 3 / 4);
-  const eyeY = Math.floor(canvas.height / 2);
-  let drawLeftEye = true;
-  let drawRightEye = true;
-  switch (direction) {
-    case "left":
-      leftEyeX = canvas.width / 2;
-      drawRightEye = false;
-      break;
-    case "right":
-      rightEyeX = canvas.width / 2;
-      drawLeftEye = false;
-      break;
-    case "front-left":
-    case "back-left":
-      leftEyeX = canvas.width / 2 - 2;
-      rightEyeX = canvas.width * 3 / 4 + 1;
-      break;
-    case "front-right":
-    case "back-right":
-      leftEyeX = canvas.width / 4 - 1;
-      rightEyeX = canvas.width / 2 + 2;
-      break;
-  }
-  if (drawLeftEye) {
-    drawCircle(
-      canvas.buffer,
-      canvas.width,
-      canvas.height,
-      leftEyeX,
-      eyeY,
-      eyeRadius,
-      COLORS.eyeWhite.r,
-      COLORS.eyeWhite.g,
-      COLORS.eyeWhite.b,
-      COLORS.eyeWhite.a,
-      true
-    );
-    setPixel(canvas.buffer, canvas.width, leftEyeX, eyeY, COLORS.eyeIris.r, COLORS.eyeIris.g, COLORS.eyeIris.b, COLORS.eyeIris.a);
-    setPixel(canvas.buffer, canvas.width, leftEyeX, eyeY + 1, COLORS.eyePupil.r, COLORS.eyePupil.g, COLORS.eyePupil.b, COLORS.eyePupil.a);
-    colorRegions.primary.push([leftEyeX, eyeY]);
-  }
-  if (drawRightEye) {
-    drawCircle(
-      canvas.buffer,
-      canvas.width,
-      canvas.height,
-      rightEyeX,
-      eyeY,
-      eyeRadius,
-      COLORS.eyeWhite.r,
-      COLORS.eyeWhite.g,
-      COLORS.eyeWhite.b,
-      COLORS.eyeWhite.a,
-      true
-    );
-    setPixel(canvas.buffer, canvas.width, rightEyeX, eyeY, COLORS.eyeIris.r, COLORS.eyeIris.g, COLORS.eyeIris.b, COLORS.eyeIris.a);
-    setPixel(canvas.buffer, canvas.width, rightEyeX, eyeY + 1, COLORS.eyePupil.r, COLORS.eyePupil.g, COLORS.eyePupil.b, COLORS.eyePupil.a);
-    colorRegions.primary.push([rightEyeX, eyeY]);
-  }
-}
-function drawAnimeEyes(canvas, colorRegions, direction) {
-  if (direction === "back") {
-    return;
-  }
-  let leftEyeX = Math.floor(canvas.width / 4);
-  let rightEyeX = Math.floor(canvas.width * 3 / 4);
-  const eyeY = Math.floor(canvas.height / 2);
-  let drawLeftEye = true;
-  let drawRightEye = true;
-  switch (direction) {
-    case "left":
-      leftEyeX = Math.floor(canvas.width / 2) - 1;
-      drawRightEye = false;
-      break;
-    case "right":
-      rightEyeX = Math.floor(canvas.width / 2) + 1;
-      drawLeftEye = false;
-      break;
-    case "front-left":
-    case "back-left":
-      leftEyeX = Math.floor(canvas.width / 2) - 2;
-      rightEyeX = Math.floor(canvas.width * 3 / 4) + 1;
-      break;
-    case "front-right":
-    case "back-right":
-      leftEyeX = Math.floor(canvas.width / 4) - 1;
-      rightEyeX = Math.floor(canvas.width / 2) + 2;
-      break;
-  }
-  if (drawLeftEye) {
-    drawRect(
-      canvas.buffer,
-      canvas.width,
-      leftEyeX - 2,
-      eyeY - 1,
-      leftEyeX + 2,
-      eyeY + 3,
-      COLORS.eyeWhite.r,
-      COLORS.eyeWhite.g,
-      COLORS.eyeWhite.b,
-      COLORS.eyeWhite.a,
-      true
-    );
-    setPixel(canvas.buffer, canvas.width, leftEyeX - 1, eyeY, COLORS.eyeIris.r, COLORS.eyeIris.g, COLORS.eyeIris.b, COLORS.eyeIris.a);
-    setPixel(canvas.buffer, canvas.width, leftEyeX, eyeY, COLORS.eyeIris.r, COLORS.eyeIris.g, COLORS.eyeIris.b, COLORS.eyeIris.a);
-    setPixel(canvas.buffer, canvas.width, leftEyeX + 1, eyeY, COLORS.eyeIris.r, COLORS.eyeIris.g, COLORS.eyeIris.b, COLORS.eyeIris.a);
-    setPixel(canvas.buffer, canvas.width, leftEyeX, eyeY + 1, COLORS.eyePupil.r, COLORS.eyePupil.g, COLORS.eyePupil.b, COLORS.eyePupil.a);
-    colorRegions.primary.push([leftEyeX - 1, eyeY]);
-    colorRegions.primary.push([leftEyeX, eyeY]);
-    colorRegions.primary.push([leftEyeX + 1, eyeY]);
-  }
-  if (drawRightEye) {
-    drawRect(
-      canvas.buffer,
-      canvas.width,
-      rightEyeX - 2,
-      eyeY - 1,
-      rightEyeX + 2,
-      eyeY + 3,
-      COLORS.eyeWhite.r,
-      COLORS.eyeWhite.g,
-      COLORS.eyeWhite.b,
-      COLORS.eyeWhite.a,
-      true
-    );
-    setPixel(canvas.buffer, canvas.width, rightEyeX - 1, eyeY, COLORS.eyeIris.r, COLORS.eyeIris.g, COLORS.eyeIris.b, COLORS.eyeIris.a);
-    setPixel(canvas.buffer, canvas.width, rightEyeX, eyeY, COLORS.eyeIris.r, COLORS.eyeIris.g, COLORS.eyeIris.b, COLORS.eyeIris.a);
-    setPixel(canvas.buffer, canvas.width, rightEyeX + 1, eyeY, COLORS.eyeIris.r, COLORS.eyeIris.g, COLORS.eyeIris.b, COLORS.eyeIris.a);
-    setPixel(canvas.buffer, canvas.width, rightEyeX, eyeY + 1, COLORS.eyePupil.r, COLORS.eyePupil.g, COLORS.eyePupil.b, COLORS.eyePupil.a);
-    colorRegions.primary.push([rightEyeX - 1, eyeY]);
-    colorRegions.primary.push([rightEyeX, eyeY]);
-    colorRegions.primary.push([rightEyeX + 1, eyeY]);
-  }
-}
-function drawSmallEyes(canvas, colorRegions, direction) {
-  if (direction === "back") {
-    return;
-  }
-  let leftEyeX = Math.floor(canvas.width / 4);
-  let rightEyeX = Math.floor(canvas.width * 3 / 4);
-  const eyeY = Math.floor(canvas.height / 2);
-  let drawLeftEye = true;
-  let drawRightEye = true;
-  switch (direction) {
-    case "left":
-      leftEyeX = Math.floor(canvas.width / 2) - 2;
-      drawRightEye = false;
-      break;
-    case "right":
-      rightEyeX = Math.floor(canvas.width / 2) + 2;
-      drawLeftEye = false;
-      break;
-    case "front-left":
-    case "back-left":
-      leftEyeX = Math.floor(canvas.width / 2) - 2;
-      rightEyeX = Math.floor(canvas.width * 3 / 4) + 1;
-      break;
-    case "front-right":
-    case "back-right":
-      leftEyeX = Math.floor(canvas.width / 4) - 1;
-      rightEyeX = Math.floor(canvas.width / 2) + 2;
-      break;
-  }
-  if (drawLeftEye) {
-    setPixel(canvas.buffer, canvas.width, leftEyeX, eyeY, COLORS.eyePupil.r, COLORS.eyePupil.g, COLORS.eyePupil.b, COLORS.eyePupil.a);
-    colorRegions.primary.push([leftEyeX, eyeY]);
-  }
-  if (drawRightEye) {
-    setPixel(canvas.buffer, canvas.width, rightEyeX, eyeY, COLORS.eyePupil.r, COLORS.eyePupil.g, COLORS.eyePupil.b, COLORS.eyePupil.a);
-    colorRegions.primary.push([rightEyeX, eyeY]);
-  }
-}
-function drawBasicShirt(canvas, colorRegions, direction) {
-  let shirtWidth = canvas.width - 4;
-  let shadowSide = "right";
-  let offsetX = 0;
-  switch (direction) {
-    case "left":
-      shirtWidth = Math.floor(shirtWidth * 0.7);
-      shadowSide = "right";
-      offsetX = -1;
-      break;
-    case "right":
-      shirtWidth = Math.floor(shirtWidth * 0.7);
-      shadowSide = "left";
-      offsetX = 1;
-      break;
-    case "back":
-      shadowSide = "left";
-      break;
-    case "front-left":
-    case "back-left":
-      offsetX = -1;
-      shadowSide = "right";
-      break;
-    case "front-right":
-    case "back-right":
-      offsetX = 1;
-      shadowSide = "left";
-      break;
-  }
-  const shirtLeft = Math.max(0, 2 + offsetX);
-  const shirtRight = Math.min(canvas.width, shirtLeft + shirtWidth);
-  drawRect(
-    canvas.buffer,
-    canvas.width,
-    shirtLeft,
-    2,
-    shirtRight,
-    canvas.height - 2,
-    COLORS.shirt.r,
-    COLORS.shirt.g,
-    COLORS.shirt.b,
-    COLORS.shirt.a,
-    true
-  );
-  let shadowLeft, shadowRight;
-  if (shadowSide === "right") {
-    shadowLeft = Math.max(shirtLeft, shirtRight - 4);
-    shadowRight = shirtRight;
-  } else {
-    shadowLeft = shirtLeft;
-    shadowRight = Math.min(shirtRight, shirtLeft + 4);
-  }
-  drawRect(
-    canvas.buffer,
-    canvas.width,
-    shadowLeft,
-    2,
-    shadowRight,
-    canvas.height - 2,
-    COLORS.shirtShadow.r,
-    COLORS.shirtShadow.g,
-    COLORS.shirtShadow.b,
-    COLORS.shirtShadow.a,
-    true
-  );
-  for (let y = 2; y < canvas.height - 2; y++) {
-    for (let x = shirtLeft; x < shirtRight; x++) {
-      if (x >= shadowLeft && x < shadowRight) {
-        colorRegions.shadow.push([x, y]);
-      } else {
-        colorRegions.primary.push([x, y]);
-      }
-    }
-  }
-}
-function drawArmor(canvas, colorRegions, direction) {
-  let armorWidth = canvas.width - 2;
-  let offsetX = 0;
-  let plateSpacing = 4;
-  switch (direction) {
-    case "left":
-      armorWidth = Math.floor(armorWidth * 0.6);
-      offsetX = -1;
-      break;
-    case "right":
-      armorWidth = Math.floor(armorWidth * 0.6);
-      offsetX = 1;
-      break;
-    case "back":
-      plateSpacing = 3;
-      break;
-    case "front-left":
-    case "back-left":
-      armorWidth = Math.floor(armorWidth * 0.8);
-      offsetX = -1;
-      break;
-    case "front-right":
-    case "back-right":
-      armorWidth = Math.floor(armorWidth * 0.8);
-      offsetX = 1;
-      break;
-  }
-  const armorLeft = Math.max(0, 1 + offsetX);
-  const armorRight = Math.min(canvas.width, armorLeft + armorWidth);
-  drawRect(
-    canvas.buffer,
-    canvas.width,
-    armorLeft,
-    1,
-    armorRight,
-    canvas.height - 1,
-    COLORS.armor.r,
-    COLORS.armor.g,
-    COLORS.armor.b,
-    COLORS.armor.a,
-    true
-  );
-  for (let y = plateSpacing; y < canvas.height - plateSpacing; y += plateSpacing) {
-    drawRect(
-      canvas.buffer,
-      canvas.width,
-      armorLeft,
-      y,
-      armorRight,
-      y + 1,
-      COLORS.armorShadow.r,
-      COLORS.armorShadow.g,
-      COLORS.armorShadow.b,
-      COLORS.armorShadow.a,
-      true
-    );
-  }
-  for (let y = 1; y < canvas.height - 1; y++) {
-    for (let x = armorLeft; x < armorRight; x++) {
-      if (y % plateSpacing === 0 || y % plateSpacing === 1) {
-        colorRegions.shadow.push([x, y]);
-      } else {
-        colorRegions.primary.push([x, y]);
-      }
-    }
-  }
-}
-function drawRobe(canvas, colorRegions, direction) {
-  let robeWidth = canvas.width - 2;
-  let offsetX = 0;
-  let beltPosition = canvas.height / 2;
-  switch (direction) {
-    case "left":
-      robeWidth = Math.floor(robeWidth * 0.7);
-      offsetX = -2;
-      break;
-    case "right":
-      robeWidth = Math.floor(robeWidth * 0.7);
-      offsetX = 2;
-      break;
-    case "back":
-      beltPosition = canvas.height / 2 + 1;
-      break;
-    case "front-left":
-    case "back-left":
-      robeWidth = Math.floor(robeWidth * 0.8);
-      offsetX = -1;
-      break;
-    case "front-right":
-    case "back-right":
-      robeWidth = Math.floor(robeWidth * 0.8);
-      offsetX = 1;
-      break;
-  }
-  const robeLeft = Math.max(0, 1 + offsetX);
-  const robeRight = Math.min(canvas.width, robeLeft + robeWidth);
-  drawRect(
-    canvas.buffer,
-    canvas.width,
-    robeLeft,
-    1,
-    robeRight,
-    canvas.height - 1,
-    COLORS.shirt.r,
-    COLORS.shirt.g,
-    COLORS.shirt.b,
-    COLORS.shirt.a,
-    true
-  );
-  const beltY = Math.floor(beltPosition);
-  drawRect(
-    canvas.buffer,
-    canvas.width,
-    robeLeft + 1,
-    beltY,
-    robeRight - 1,
-    beltY + 2,
-    COLORS.shirtShadow.r,
-    COLORS.shirtShadow.g,
-    COLORS.shirtShadow.b,
-    COLORS.shirtShadow.a,
-    true
-  );
-  for (let y = 1; y < canvas.height - 1; y++) {
-    for (let x = robeLeft; x < robeRight; x++) {
-      if (y >= beltY && y <= beltY + 2) {
-        colorRegions.shadow.push([x, y]);
-      } else {
-        colorRegions.primary.push([x, y]);
-      }
-    }
-  }
-}
 
 // src/char/body.ts
 var COLORS2 = {
@@ -2896,6 +2617,275 @@ var COLORS2 = {
   shadow: { r: 230, g: 190, b: 140, a: 255 }
   // #E6BE8C - skin shadow
 };
+function renderPixelMap(canvas, pixelMap, palette, startY = 0) {
+  for (let y = 0; y < pixelMap.length; y++) {
+    const row = pixelMap[y];
+    if (row === void 0) {
+      continue;
+    }
+    for (let x = 0; x < row.length; x++) {
+      const colorIndex = row[x];
+      if (colorIndex === void 0 || colorIndex === 0) {
+        continue;
+      }
+      const color = palette[colorIndex];
+      if (color !== void 0 && startY + y < canvas.height) {
+        setPixel(canvas.buffer, canvas.width, x, startY + y, color.r, color.g, color.b, color.a);
+      }
+    }
+  }
+}
+var FRONT_BODY_MAP = [
+  // HEAD (rows 0-19) - Big chibi head
+  // Row 0-3: Top of head
+  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0],
+  // Row 4-7: Upper head with more width
+  [0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0],
+  [0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0],
+  [0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0],
+  // Row 8-11: Mid head with shadows
+  [0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 2, 1, 0, 0, 0],
+  [0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 2, 1, 0, 0, 0],
+  [0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 2, 1, 0, 0, 0],
+  [0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 2, 1, 0, 0, 0],
+  // Row 12-15: Lower head with ears
+  [0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 2, 2, 1, 0, 0],
+  [0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 2, 2, 1, 0, 0],
+  [0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 2, 2, 1, 0, 0],
+  [0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 2, 1, 0, 0, 0],
+  // Row 16-19: Chin area, narrowing
+  [0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0],
+  [0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0],
+  [0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 0, 0, 0, 0, 0, 0],
+  // NECK (rows 20-21)
+  [0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+  // TORSO (rows 22-31)
+  [0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0],
+  [0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0],
+  [0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0],
+  [0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0],
+  [0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0],
+  [0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0],
+  [0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0],
+  [0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0],
+  // LEGS (rows 32-43) - Two separate legs
+  [0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0],
+  // FEET (rows 44-47)
+  [0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0],
+  [0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0],
+  [0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+];
+var BACK_BODY_MAP = [
+  // HEAD (rows 0-19) - Similar to front but no face details
+  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0],
+  [0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0],
+  [0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0],
+  [0, 0, 1, 2, 2, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0],
+  [0, 0, 1, 2, 2, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0],
+  [0, 0, 1, 2, 2, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0],
+  [0, 0, 1, 2, 2, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0],
+  [0, 1, 2, 2, 2, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0],
+  [0, 1, 2, 2, 2, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0],
+  [0, 1, 2, 2, 2, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0],
+  [0, 0, 1, 2, 2, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0],
+  [0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0],
+  [0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0],
+  [0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 0, 0, 0, 0, 0, 0],
+  // NECK
+  [0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+  // TORSO
+  [0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0],
+  [0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0],
+  [0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0],
+  [0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0],
+  [0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0],
+  [0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0],
+  [0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0],
+  [0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0],
+  // LEGS
+  [0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0],
+  // FEET
+  [0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0],
+  [0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0],
+  [0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+];
+var LEFT_BODY_MAP = [
+  // HEAD - Profile shape (more oval)
+  [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 1, 2, 2, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 1, 2, 2, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 1, 2, 2, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+  [1, 2, 2, 2, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+  [1, 2, 2, 2, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+  [1, 2, 2, 2, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  // NECK
+  [0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  // TORSO - narrower profile
+  [0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  // LEGS - closer together in profile
+  [0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  // FEET
+  [0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 1, 1, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 1, 1, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+];
+var RIGHT_BODY_MAP = [
+  // HEAD - Profile shape (mirrored)
+  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 2, 1, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 2, 1, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 2, 1, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 2, 2, 1, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 2, 2, 1, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 2, 2, 1, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  // NECK
+  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  // TORSO - narrower profile
+  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  // LEGS - closer together in profile
+  [0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+  // FEET
+  [0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 1, 1, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 1, 1, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+];
+function getBodyPixelMap(direction) {
+  switch (direction) {
+    case "front":
+      return FRONT_BODY_MAP;
+    case "back":
+      return BACK_BODY_MAP;
+    case "left":
+      return LEFT_BODY_MAP;
+    case "right":
+      return RIGHT_BODY_MAP;
+    case "front-left":
+      return FRONT_BODY_MAP;
+    // For now, using front as base
+    case "front-right":
+      return FRONT_BODY_MAP;
+    case "back-left":
+      return BACK_BODY_MAP;
+    case "back-right":
+      return BACK_BODY_MAP;
+    default:
+      return FRONT_BODY_MAP;
+  }
+}
+function applyBodyModifications(pixelMap, build, height) {
+  return pixelMap;
+}
 function createBaseBody(build, height, direction = "front") {
   if (!isValidBuild(build)) {
     throw new Error(`Invalid build type: ${build}. Valid types: skinny, normal, muscular`);
@@ -2907,12 +2897,21 @@ function createBaseBody(build, height, direction = "front") {
     throw new Error(`Invalid view direction: ${direction}. Valid directions: front, back, left, right, front-left, front-right, back-left, back-right`);
   }
   const canvas = createCanvas(32, 48);
-  const buildFactor = getBuildFactor(build);
-  const heightFactor = getHeightFactor(height);
-  drawChibiHead(canvas, buildFactor, heightFactor, direction);
-  drawChibiTorso(canvas, buildFactor, heightFactor, direction);
-  drawChibiLegs(canvas, buildFactor, heightFactor, direction);
-  drawChibiArms(canvas, buildFactor, heightFactor, direction);
+  let pixelMap = getBodyPixelMap(direction);
+  pixelMap = applyBodyModifications(pixelMap);
+  const palette = {
+    0: { r: 0, g: 0, b: 0, a: 0 },
+    // transparent
+    1: COLORS2.outline,
+    // dark outline
+    2: COLORS2.skin,
+    // primary skin color  
+    3: COLORS2.shadow,
+    // skin shadow
+    4: { r: 255, g: 220, b: 177, a: 255 }
+    // skin highlight (lighter than primary)
+  };
+  renderPixelMap(canvas, pixelMap, palette);
   return {
     ...canvas,
     build,
@@ -2924,582 +2923,6 @@ function isValidBuild(build) {
 }
 function isValidHeight(height) {
   return ["short", "average", "tall"].includes(height);
-}
-function getBuildFactor(build) {
-  switch (build) {
-    case "skinny":
-      return 0.8;
-    case "normal":
-      return 1;
-    case "muscular":
-      return 1.2;
-  }
-}
-function getHeightFactor(height) {
-  switch (height) {
-    case "short":
-      return 0.9;
-    case "average":
-      return 1;
-    case "tall":
-      return 1.1;
-  }
-}
-function drawChibiHead(canvas, buildFactor, heightFactor, direction) {
-  const centerX = 16;
-  const baseHeadY = 12;
-  const headY = Math.floor(baseHeadY / heightFactor);
-  const headRadius = Math.floor(8 * buildFactor);
-  switch (direction) {
-    case "front":
-      drawFrontHead(canvas, centerX, headY, headRadius);
-      break;
-    case "back":
-      drawBackHead(canvas, centerX, headY, headRadius);
-      break;
-    case "left":
-      drawLeftHead(canvas, centerX, headY, headRadius);
-      break;
-    case "right":
-      drawRightHead(canvas, centerX, headY, headRadius);
-      break;
-    case "front-left":
-      drawDiagonalHead(canvas, centerX, headY, headRadius, "front-left");
-      break;
-    case "front-right":
-      drawDiagonalHead(canvas, centerX, headY, headRadius, "front-right");
-      break;
-    case "back-left":
-      drawDiagonalHead(canvas, centerX, headY, headRadius, "back-left");
-      break;
-    case "back-right":
-      drawDiagonalHead(canvas, centerX, headY, headRadius, "back-right");
-      break;
-  }
-}
-function drawChibiTorso(canvas, buildFactor, heightFactor, direction) {
-  const centerX = 16;
-  const baseTorsoY = 24;
-  const torsoY = Math.floor(baseTorsoY / heightFactor);
-  const torsoWidth = Math.floor(10 * buildFactor);
-  const torsoHeight = Math.floor(12 * heightFactor);
-  drawDirectionalTorso(canvas, centerX, torsoY, torsoWidth, torsoHeight, direction);
-}
-function drawChibiLegs(canvas, buildFactor, heightFactor, direction) {
-  const centerX = 16;
-  const baseLegsY = 36;
-  const legsY = Math.floor(baseLegsY / heightFactor);
-  const legWidth = Math.floor(4 * buildFactor);
-  const legHeight = Math.floor(8 * heightFactor);
-  const legSpacing = Math.floor(3 * buildFactor);
-  drawDirectionalLegs(canvas, centerX, legsY, legWidth, legHeight, legSpacing, direction);
-}
-function drawChibiArms(canvas, buildFactor, heightFactor, direction) {
-  const centerX = 16;
-  const baseTorsoY = 24;
-  const armY = Math.floor(baseTorsoY / heightFactor);
-  const armWidth = Math.floor(3 * buildFactor);
-  const armHeight = Math.floor(8 * heightFactor);
-  const armDistance = Math.floor(8 * buildFactor);
-  drawDirectionalArms(canvas, centerX, armY, armWidth, armHeight, armDistance, direction);
-}
-function drawFrontHead(canvas, centerX, headY, headRadius) {
-  drawCircle(
-    canvas.buffer,
-    canvas.width,
-    canvas.height,
-    centerX,
-    headY,
-    headRadius,
-    COLORS2.skin.r,
-    COLORS2.skin.g,
-    COLORS2.skin.b,
-    COLORS2.skin.a,
-    true
-    // filled
-  );
-  drawCircle(
-    canvas.buffer,
-    canvas.width,
-    canvas.height,
-    centerX,
-    headY,
-    headRadius,
-    COLORS2.outline.r,
-    COLORS2.outline.g,
-    COLORS2.outline.b,
-    COLORS2.outline.a,
-    false
-    // outline only
-  );
-  const shadowRadius = Math.floor(headRadius * 0.6);
-  const shadowY = headY + 2;
-  const shadowX = centerX + 2;
-  for (let i = 0; i < shadowRadius; i++) {
-    const x = shadowX + i;
-    const y = shadowY;
-    if (x < canvas.width && y < canvas.height) {
-      setPixel(
-        canvas.buffer,
-        canvas.width,
-        x,
-        y,
-        COLORS2.shadow.r,
-        COLORS2.shadow.g,
-        COLORS2.shadow.b,
-        COLORS2.shadow.a
-      );
-    }
-  }
-}
-function drawBackHead(canvas, centerX, headY, headRadius) {
-  drawCircle(
-    canvas.buffer,
-    canvas.width,
-    canvas.height,
-    centerX,
-    headY,
-    headRadius,
-    COLORS2.skin.r,
-    COLORS2.skin.g,
-    COLORS2.skin.b,
-    COLORS2.skin.a,
-    true
-    // filled
-  );
-  drawCircle(
-    canvas.buffer,
-    canvas.width,
-    canvas.height,
-    centerX,
-    headY,
-    headRadius,
-    COLORS2.outline.r,
-    COLORS2.outline.g,
-    COLORS2.outline.b,
-    COLORS2.outline.a,
-    false
-    // outline only
-  );
-  const shadowRadius = Math.floor(headRadius * 0.6);
-  const shadowY = headY + 2;
-  const shadowX = centerX - 4;
-  for (let i = 0; i < shadowRadius; i++) {
-    const x = shadowX - i;
-    const y = shadowY;
-    if (x >= 0 && x < canvas.width && y < canvas.height) {
-      setPixel(
-        canvas.buffer,
-        canvas.width,
-        x,
-        y,
-        COLORS2.shadow.r,
-        COLORS2.shadow.g,
-        COLORS2.shadow.b,
-        COLORS2.shadow.a
-      );
-    }
-  }
-}
-function drawLeftHead(canvas, centerX, headY, headRadius) {
-  const profileWidth = Math.floor(headRadius * 0.7);
-  const profileHeight = headRadius;
-  for (let y = -profileHeight; y <= profileHeight; y++) {
-    for (let x = -profileWidth; x <= profileWidth; x++) {
-      const ellipseTest = x * x / (profileWidth * profileWidth) + y * y / (profileHeight * profileHeight);
-      if (ellipseTest <= 1) {
-        const pixelX = centerX + x - 2;
-        const pixelY = headY + y;
-        if (pixelX >= 0 && pixelX < canvas.width && pixelY >= 0 && pixelY < canvas.height) {
-          setPixel(
-            canvas.buffer,
-            canvas.width,
-            pixelX,
-            pixelY,
-            COLORS2.skin.r,
-            COLORS2.skin.g,
-            COLORS2.skin.b,
-            COLORS2.skin.a
-          );
-        }
-      }
-    }
-  }
-  for (let y = -profileHeight; y <= profileHeight; y++) {
-    const x = Math.floor(Math.sqrt((1 - y * y / (profileHeight * profileHeight)) * profileWidth * profileWidth));
-    const pixelX = centerX + x - 2;
-    const pixelY = headY + y;
-    if (pixelX >= 0 && pixelX < canvas.width && pixelY >= 0 && pixelY < canvas.height) {
-      setPixel(
-        canvas.buffer,
-        canvas.width,
-        pixelX,
-        pixelY,
-        COLORS2.outline.r,
-        COLORS2.outline.g,
-        COLORS2.outline.b,
-        COLORS2.outline.a
-      );
-    }
-  }
-}
-function drawRightHead(canvas, centerX, headY, headRadius) {
-  const profileWidth = Math.floor(headRadius * 0.7);
-  const profileHeight = headRadius;
-  for (let y = -profileHeight; y <= profileHeight; y++) {
-    for (let x = -profileWidth; x <= profileWidth; x++) {
-      const ellipseTest = x * x / (profileWidth * profileWidth) + y * y / (profileHeight * profileHeight);
-      if (ellipseTest <= 1) {
-        const pixelX = centerX + x + 2;
-        const pixelY = headY + y;
-        if (pixelX >= 0 && pixelX < canvas.width && pixelY >= 0 && pixelY < canvas.height) {
-          setPixel(
-            canvas.buffer,
-            canvas.width,
-            pixelX,
-            pixelY,
-            COLORS2.skin.r,
-            COLORS2.skin.g,
-            COLORS2.skin.b,
-            COLORS2.skin.a
-          );
-        }
-      }
-    }
-  }
-  for (let y = -profileHeight; y <= profileHeight; y++) {
-    const x = -Math.floor(Math.sqrt((1 - y * y / (profileHeight * profileHeight)) * profileWidth * profileWidth));
-    const pixelX = centerX + x + 2;
-    const pixelY = headY + y;
-    if (pixelX >= 0 && pixelX < canvas.width && pixelY >= 0 && pixelY < canvas.height) {
-      setPixel(
-        canvas.buffer,
-        canvas.width,
-        pixelX,
-        pixelY,
-        COLORS2.outline.r,
-        COLORS2.outline.g,
-        COLORS2.outline.b,
-        COLORS2.outline.a
-      );
-    }
-  }
-}
-function drawDiagonalHead(canvas, centerX, headY, headRadius, direction) {
-  const horizontalFactor = 0.85;
-  const adjustedRadius = Math.floor(headRadius * horizontalFactor);
-  let offsetX = 0;
-  let shadowOffsetX = 0;
-  let shadowOffsetY = 0;
-  if (direction.includes("left")) {
-    offsetX = -1;
-  } else if (direction.includes("right")) {
-    offsetX = 1;
-  }
-  if (direction.includes("front")) {
-    shadowOffsetX = direction.includes("left") ? 1 : -1;
-    shadowOffsetY = 1;
-  } else {
-    shadowOffsetX = direction.includes("left") ? -2 : 2;
-    shadowOffsetY = 2;
-  }
-  for (let y = -headRadius; y <= headRadius; y++) {
-    for (let x = -adjustedRadius; x <= adjustedRadius; x++) {
-      const ellipseTest = x * x / (adjustedRadius * adjustedRadius) + y * y / (headRadius * headRadius);
-      if (ellipseTest <= 1) {
-        const pixelX = centerX + x + offsetX;
-        const pixelY = headY + y;
-        if (pixelX >= 0 && pixelX < canvas.width && pixelY >= 0 && pixelY < canvas.height) {
-          setPixel(
-            canvas.buffer,
-            canvas.width,
-            pixelX,
-            pixelY,
-            COLORS2.skin.r,
-            COLORS2.skin.g,
-            COLORS2.skin.b,
-            COLORS2.skin.a
-          );
-        }
-      }
-    }
-  }
-  for (let y = -headRadius; y <= headRadius; y++) {
-    const xOffset = Math.floor(Math.sqrt((1 - y * y / (headRadius * headRadius)) * adjustedRadius * adjustedRadius));
-    const leftX = centerX - xOffset + offsetX;
-    if (leftX >= 0 && leftX < canvas.width && headY + y >= 0 && headY + y < canvas.height) {
-      setPixel(
-        canvas.buffer,
-        canvas.width,
-        leftX,
-        headY + y,
-        COLORS2.outline.r,
-        COLORS2.outline.g,
-        COLORS2.outline.b,
-        COLORS2.outline.a
-      );
-    }
-    const rightX = centerX + xOffset + offsetX;
-    if (rightX >= 0 && rightX < canvas.width && headY + y >= 0 && headY + y < canvas.height) {
-      setPixel(
-        canvas.buffer,
-        canvas.width,
-        rightX,
-        headY + y,
-        COLORS2.outline.r,
-        COLORS2.outline.g,
-        COLORS2.outline.b,
-        COLORS2.outline.a
-      );
-    }
-  }
-  const shadowRadius = Math.floor(headRadius * 0.4);
-  for (let i = 0; i < shadowRadius; i++) {
-    for (let j = 0; j < shadowRadius; j++) {
-      const shadowX = centerX + shadowOffsetX + i;
-      const shadowY = headY + shadowOffsetY + j;
-      if (shadowX >= 0 && shadowX < canvas.width && shadowY >= 0 && shadowY < canvas.height) {
-        setPixel(
-          canvas.buffer,
-          canvas.width,
-          shadowX,
-          shadowY,
-          COLORS2.shadow.r,
-          COLORS2.shadow.g,
-          COLORS2.shadow.b,
-          COLORS2.shadow.a
-        );
-      }
-    }
-  }
-}
-function drawDirectionalTorso(canvas, centerX, torsoY, torsoWidth, torsoHeight, direction) {
-  let actualWidth = torsoWidth;
-  let offsetX = 0;
-  switch (direction) {
-    case "front":
-    case "back":
-      break;
-    case "left":
-      actualWidth = Math.floor(torsoWidth * 0.6);
-      offsetX = -2;
-      break;
-    case "right":
-      actualWidth = Math.floor(torsoWidth * 0.6);
-      offsetX = 2;
-      break;
-    case "front-left":
-    case "back-left":
-      actualWidth = Math.floor(torsoWidth * 0.8);
-      offsetX = -1;
-      break;
-    case "front-right":
-    case "back-right":
-      actualWidth = Math.floor(torsoWidth * 0.8);
-      offsetX = 1;
-      break;
-  }
-  drawRect(
-    canvas.buffer,
-    canvas.width,
-    centerX - actualWidth / 2 + offsetX,
-    torsoY - torsoHeight / 2,
-    centerX + actualWidth / 2 + offsetX,
-    torsoY + torsoHeight / 2,
-    COLORS2.skin.r,
-    COLORS2.skin.g,
-    COLORS2.skin.b,
-    COLORS2.skin.a,
-    true
-    // filled
-  );
-  drawRect(
-    canvas.buffer,
-    canvas.width,
-    centerX - actualWidth / 2 + offsetX,
-    torsoY - torsoHeight / 2,
-    centerX + actualWidth / 2 + offsetX,
-    torsoY + torsoHeight / 2,
-    COLORS2.outline.r,
-    COLORS2.outline.g,
-    COLORS2.outline.b,
-    COLORS2.outline.a,
-    false
-    // outline only
-  );
-}
-function drawDirectionalLegs(canvas, centerX, legsY, legWidth, legHeight, legSpacing, direction) {
-  let actualLegSpacing = legSpacing;
-  const actualLegWidth = legWidth;
-  let offsetX = 0;
-  switch (direction) {
-    case "front":
-    case "back":
-      break;
-    case "left":
-      actualLegSpacing = Math.floor(legSpacing * 0.5);
-      offsetX = -1;
-      break;
-    case "right":
-      actualLegSpacing = Math.floor(legSpacing * 0.5);
-      offsetX = 1;
-      break;
-    case "front-left":
-    case "back-left":
-      actualLegSpacing = Math.floor(legSpacing * 0.7);
-      offsetX = -1;
-      break;
-    case "front-right":
-    case "back-right":
-      actualLegSpacing = Math.floor(legSpacing * 0.7);
-      offsetX = 1;
-      break;
-  }
-  drawRect(
-    canvas.buffer,
-    canvas.width,
-    centerX - actualLegSpacing - actualLegWidth + offsetX,
-    legsY,
-    centerX - actualLegSpacing + offsetX,
-    legsY + legHeight,
-    COLORS2.skin.r,
-    COLORS2.skin.g,
-    COLORS2.skin.b,
-    COLORS2.skin.a,
-    true
-    // filled
-  );
-  drawRect(
-    canvas.buffer,
-    canvas.width,
-    centerX + actualLegSpacing + offsetX,
-    legsY,
-    centerX + actualLegSpacing + actualLegWidth + offsetX,
-    legsY + legHeight,
-    COLORS2.skin.r,
-    COLORS2.skin.g,
-    COLORS2.skin.b,
-    COLORS2.skin.a,
-    true
-    // filled
-  );
-  drawRect(
-    canvas.buffer,
-    canvas.width,
-    centerX - actualLegSpacing - actualLegWidth + offsetX,
-    legsY,
-    centerX - actualLegSpacing + offsetX,
-    legsY + legHeight,
-    COLORS2.outline.r,
-    COLORS2.outline.g,
-    COLORS2.outline.b,
-    COLORS2.outline.a,
-    false
-    // outline only
-  );
-  drawRect(
-    canvas.buffer,
-    canvas.width,
-    centerX + actualLegSpacing + offsetX,
-    legsY,
-    centerX + actualLegSpacing + actualLegWidth + offsetX,
-    legsY + legHeight,
-    COLORS2.outline.r,
-    COLORS2.outline.g,
-    COLORS2.outline.b,
-    COLORS2.outline.a,
-    false
-    // outline only
-  );
-}
-function drawDirectionalArms(canvas, centerX, armY, armWidth, armHeight, armDistance, direction) {
-  let leftArmVisible = true;
-  let rightArmVisible = true;
-  let leftArmOffset = 0;
-  let rightArmOffset = 0;
-  switch (direction) {
-    case "front":
-    case "back":
-      break;
-    case "left":
-      rightArmVisible = false;
-      leftArmOffset = -2;
-      break;
-    case "right":
-      leftArmVisible = false;
-      rightArmOffset = 2;
-      break;
-    case "front-left":
-    case "back-left":
-      leftArmOffset = -1;
-      rightArmOffset = 1;
-      break;
-    case "front-right":
-    case "back-right":
-      leftArmOffset = 1;
-      rightArmOffset = -1;
-      break;
-  }
-  if (leftArmVisible) {
-    drawRect(
-      canvas.buffer,
-      canvas.width,
-      centerX - armDistance - armWidth + leftArmOffset,
-      armY - armHeight / 2,
-      centerX - armDistance + leftArmOffset,
-      armY + armHeight / 2,
-      COLORS2.skin.r,
-      COLORS2.skin.g,
-      COLORS2.skin.b,
-      COLORS2.skin.a,
-      true
-      // filled
-    );
-    drawRect(
-      canvas.buffer,
-      canvas.width,
-      centerX - armDistance - armWidth + leftArmOffset,
-      armY - armHeight / 2,
-      centerX - armDistance + leftArmOffset,
-      armY + armHeight / 2,
-      COLORS2.outline.r,
-      COLORS2.outline.g,
-      COLORS2.outline.b,
-      COLORS2.outline.a,
-      false
-      // outline only
-    );
-  }
-  if (rightArmVisible) {
-    drawRect(
-      canvas.buffer,
-      canvas.width,
-      centerX + armDistance + rightArmOffset,
-      armY - armHeight / 2,
-      centerX + armDistance + armWidth + rightArmOffset,
-      armY + armHeight / 2,
-      COLORS2.skin.r,
-      COLORS2.skin.g,
-      COLORS2.skin.b,
-      COLORS2.skin.a,
-      true
-      // filled
-    );
-    drawRect(
-      canvas.buffer,
-      canvas.width,
-      centerX + armDistance + rightArmOffset,
-      armY - armHeight / 2,
-      centerX + armDistance + armWidth + rightArmOffset,
-      armY + armHeight / 2,
-      COLORS2.outline.r,
-      COLORS2.outline.g,
-      COLORS2.outline.b,
-      COLORS2.outline.a,
-      false
-      // outline only
-    );
-  }
 }
 
 // src/char/template.ts
