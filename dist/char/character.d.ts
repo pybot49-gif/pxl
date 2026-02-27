@@ -2,6 +2,7 @@ import { BuildType, HeightType } from './body.js';
 import { CharacterPart, PartSlot } from './parts.js';
 import { ColorScheme, Color } from './color.js';
 import '../core/canvas.js';
+import './view.js';
 
 /**
  * Character instance with equipped parts and color scheme

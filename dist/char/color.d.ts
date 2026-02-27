@@ -1,5 +1,6 @@
 import { CharacterPart } from './parts.js';
 import '../core/canvas.js';
+import './view.js';
 
 /**
  * Color type for character coloring (RGBA values 0-255)

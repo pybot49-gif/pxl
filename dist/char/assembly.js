@@ -175,6 +175,21 @@ function applyColorScheme(part, scheme, category) {
   return coloredPart;
 }
 
+// src/char/view.ts
+var ALL_VIEW_DIRECTIONS = [
+  "front",
+  "back",
+  "left",
+  "right",
+  "front-left",
+  "front-right",
+  "back-left",
+  "back-right"
+];
+function isValidViewDirection(direction) {
+  return ALL_VIEW_DIRECTIONS.includes(direction);
+}
+
 // src/char/assembly.ts
 var PART_Z_ORDER = {
   "hair-back": 0,
@@ -215,7 +230,10 @@ var PART_Z_ORDER = {
 function createCharacterCanvas(width, height) {
   return createCanvas(width, height);
 }
-function assembleCharacter(baseBody, equippedParts, colorScheme) {
+function assembleCharacter(baseBody, equippedParts, colorScheme, direction = "front") {
+  if (!isValidViewDirection(direction)) {
+    throw new Error(`Invalid view direction: ${direction}. Valid directions: front, back, left, right, front-left, front-right, back-left, back-right`);
+  }
   const canvas = createCharacterCanvas(baseBody.width, baseBody.height);
   const template = createBodyTemplate("temp", baseBody.width, baseBody.height, "chibi");
   const renderParts = [];

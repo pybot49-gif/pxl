@@ -1,4 +1,5 @@
 import { Canvas } from '../core/canvas.js';
+import { ViewDirection } from './view.js';
 
 /**
  * Valid build types for character bodies
@@ -19,8 +20,9 @@ interface BaseBodySprite extends Canvas {
  * Create a base body template with programmatic pixel art
  * @param build Body build type (skinny, normal, muscular)
  * @param height Body height type (short, average, tall)
+ * @param direction View direction (defaults to 'front')
  * @returns BaseBodySprite with 32x48 chibi body
  */
-declare function createBaseBody(build: BuildType, height: HeightType): BaseBodySprite;
+declare function createBaseBody(build: BuildType, height: HeightType, direction?: ViewDirection): BaseBodySprite;
 
 export { type BaseBodySprite, type BuildType, type HeightType, createBaseBody };

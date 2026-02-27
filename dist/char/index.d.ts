@@ -6,3 +6,4 @@ export { COLOR_PRESETS, Color, ColorCategory, ColorRegionType, ColorScheme, Colo
 export { AssembledCharacter, EquippedParts, assembleCharacter, createCharacterCanvas } from './assembly.js';
 export { Character, CharacterData, ColorUpdate, createCharacter, equipPart, loadCharacter, saveCharacter, setCharacterColors, unequipPart } from './character.js';
 import '../core/canvas.js';
+import './view.js';
