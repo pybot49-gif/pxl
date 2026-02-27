@@ -162,12 +162,12 @@ describe('Multi-View CLI Character Commands (#64-#65)', () => {
       }).toThrow();
     });
 
-    it('should handle empty views option', () => {
+    it('should handle empty views option as default single render', () => {
       execSync(`node "${pxlPath}" char create empty-views-test --build normal --height average`, { cwd: testDir });
       
-      expect(() => {
-        execSync(`node "${pxlPath}" char render empty-views-test --views ""`, { cwd: testDir });
-      }).toThrow();
+      // Empty views string falls back to default single render (not an error)
+      const output = execSync(`node "${pxlPath}" char render empty-views-test --views ""`, { cwd: testDir, encoding: 'utf-8' });
+      expect(output).toContain('Rendered character: empty-views-test');
     });
   });
 
